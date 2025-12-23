@@ -8,8 +8,14 @@
 </head>
 <body>
   <div id="app">
+    <!-- Loading Screen -->
+    <div id="loading-screen" class="loading-screen">
+      <div class="loading-spinner"></div>
+      <p>Загрузка...</p>
+    </div>
+
     <!-- Header -->
-    <header class="header">
+    <header class="header" hidden>
       <h1 class="header__title">COLIBRI</h1>
       <span id="user-email" class="user-email" hidden></span>
       <button id="logout-btn" class="btn-icon" aria-label="Выйти" title="Выйти" hidden>
@@ -28,7 +34,7 @@
     </header>
 
     <!-- Main Content -->
-    <main class="main">
+    <main class="main" hidden>
       <!-- Text Area -->
       <div class="textarea-container">
         <textarea 
@@ -201,7 +207,7 @@
     </div>
 
     <!-- Auth Modal -->
-    <div id="auth-modal" class="modal auth-modal">
+    <div id="auth-modal" class="modal auth-modal" hidden>
       <div class="modal__backdrop auth-backdrop"></div>
       <div class="modal__content auth-content" role="dialog" aria-labelledby="auth-modal-title" aria-modal="true">
         <div class="auth-header">

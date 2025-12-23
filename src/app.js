@@ -69,8 +69,48 @@ const elements = {
   authError: null,
   userEmail: null,
   logoutBtn: null,
-  mainContent: null
+  mainContent: null,
+  header: null,
+  loadingScreen: null
 };
+
+// ============================================================================
+// Auth State Caching (for instant UI on page load)
+// ============================================================================
+
+const AUTH_CACHE_KEY = 'colibri_auth_cache';
+
+function getCachedAuthState() {
+  try {
+    const cached = localStorage.getItem(AUTH_CACHE_KEY);
+    if (cached) {
+      return JSON.parse(cached);
+    }
+  } catch (e) {
+    // Ignore errors (PWA, private browsing, etc.)
+  }
+  return null;
+}
+
+function setCachedAuthState(isAuthenticated, userEmail) {
+  try {
+    localStorage.setItem(AUTH_CACHE_KEY, JSON.stringify({
+      isAuthenticated,
+      userEmail,
+      timestamp: Date.now()
+    }));
+  } catch (e) {
+    // Ignore errors
+  }
+}
+
+function clearCachedAuthState() {
+  try {
+    localStorage.removeItem(AUTH_CACHE_KEY);
+  } catch (e) {
+    // Ignore errors
+  }
+}
 
 // ============================================================================
 // State Management
@@ -96,12 +136,21 @@ function updateUI() {
   updateAuthUI();
 }
 
+function hideLoadingScreen() {
+  if (elements.loadingScreen) {
+    elements.loadingScreen.hidden = true;
+  }
+}
+
 function updateAuthUI() {
   if (!elements.authModal || !elements.mainContent) return;
 
   if (state.isAuthenticated) {
     elements.authModal.hidden = true;
     elements.mainContent.hidden = false;
+    if (elements.header) {
+      elements.header.hidden = false;
+    }
     if (elements.userEmail) {
       elements.userEmail.textContent = state.user?.email || '';
       elements.userEmail.hidden = false;
@@ -109,9 +158,14 @@ function updateAuthUI() {
     if (elements.logoutBtn) {
       elements.logoutBtn.hidden = false;
     }
+    // Cache auth state for next page load
+    setCachedAuthState(true, state.user?.email);
   } else {
     elements.authModal.hidden = false;
     elements.mainContent.hidden = true;
+    if (elements.header) {
+      elements.header.hidden = true;
+    }
     if (elements.userEmail) {
       elements.userEmail.hidden = true;
     }
@@ -119,6 +173,9 @@ function updateAuthUI() {
       elements.logoutBtn.hidden = true;
     }
   }
+
+  // Always hide loading screen after auth UI update
+  hideLoadingScreen();
 }
 
 function updateButtonStates() {
@@ -246,6 +303,7 @@ async function handleSignup(e) {
 
 async function handleLogout() {
   await signOut();
+  clearCachedAuthState();
   updateState({ isAuthenticated: false, user: null, hasApiKey: false });
   // Clear tasks list
   if (elements.tasksList) {
@@ -673,10 +731,22 @@ export async function createTask() {
   const text = state.text.trim();
   if (!text) return;
 
-  await storage.addTask(text);
-  setText('');
-  await renderTasks();
-  showNotification('Задача создана', 'success');
+  // Disable button during creation
+  if (elements.createTaskBtn) {
+    elements.createTaskBtn.disabled = true;
+  }
+
+  try {
+    await storage.addTask(text);
+    setText('');
+    await renderTasks();
+    showNotification('Задача создана', 'success');
+  } catch (error) {
+    showError(error.message || 'Не удалось создать задачу');
+  } finally {
+    // Re-enable button
+    updateButtonStates();
+  }
 }
 
 export async function toggleTaskComplete(taskId) {
@@ -1081,6 +1151,8 @@ function cacheElements() {
   elements.userEmail = document.getElementById('user-email');
   elements.logoutBtn = document.getElementById('logout-btn');
   elements.mainContent = document.querySelector('.main');
+  elements.header = document.querySelector('.header');
+  elements.loadingScreen = document.getElementById('loading-screen');
 }
 
 async function loadUserData() {
@@ -1120,14 +1192,43 @@ async function init() {
   initSpeechRecognition();
   bindEvents();
 
-  // Check if user is already logged in
-  const user = await getCurrentUser();
+  // Check cached auth state for instant UI (prevents flash)
+  const cachedAuth = getCachedAuthState();
 
-  if (user) {
-    updateState({ isAuthenticated: true, user });
-    await loadUserData();
-  } else {
-    updateState({ isAuthenticated: false, user: null });
+  // If we have cached auth, show main UI immediately while we verify
+  if (cachedAuth?.isAuthenticated) {
+    // Show main UI instantly based on cache
+    if (elements.header) elements.header.hidden = false;
+    if (elements.mainContent) elements.mainContent.hidden = false;
+    if (elements.authModal) elements.authModal.hidden = true;
+    if (elements.loadingScreen) elements.loadingScreen.hidden = true;
+    if (elements.userEmail) {
+      elements.userEmail.textContent = cachedAuth.userEmail || '';
+      elements.userEmail.hidden = false;
+    }
+    if (elements.logoutBtn) elements.logoutBtn.hidden = false;
+  }
+
+  // Now verify with server
+  try {
+    const user = await getCurrentUser();
+
+    if (user) {
+      updateState({ isAuthenticated: true, user });
+      await loadUserData();
+    } else {
+      // User not logged in - clear cache and show login
+      clearCachedAuthState();
+      updateState({ isAuthenticated: false, user: null });
+    }
+  } catch (error) {
+    console.error('Auth check failed:', error);
+    // On error, if we had cache, keep showing main UI
+    // Otherwise show login
+    if (!cachedAuth?.isAuthenticated) {
+      updateState({ isAuthenticated: false, user: null });
+    }
+    hideLoadingScreen();
   }
 
   updateUI();
@@ -1138,6 +1239,7 @@ async function init() {
       updateState({ isAuthenticated: true, user: session.user });
       await loadUserData();
     } else if (event === 'SIGNED_OUT') {
+      clearCachedAuthState();
       updateState({ isAuthenticated: false, user: null, hasApiKey: false });
     }
   });

@@ -6,6 +6,27 @@ import { supabase } from './supabase.js';
 import { getCurrentUser, getUserSettings, saveUserSettings } from './auth.js';
 
 // ============================================================================
+// Helper: Timeout wrapper for async operations
+// ============================================================================
+
+const DEFAULT_TIMEOUT = 10000; // 10 seconds
+
+/**
+ * Wrap a promise with a timeout
+ * @param {Promise} promise - The promise to wrap
+ * @param {number} ms - Timeout in milliseconds
+ * @returns {Promise} - Promise that rejects if timeout exceeded
+ */
+function withTimeout(promise, ms = DEFAULT_TIMEOUT) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Время ожидания истекло')), ms)
+    )
+  ]);
+}
+
+// ============================================================================
 // User Settings (from Supabase)
 // ============================================================================
 
@@ -103,26 +124,33 @@ export async function getTasks() {
   const user = await getCurrentUser();
   if (!user) return [];
 
-  const { data, error } = await supabase
-    .from('tasks')
-    .select('*')
-    .eq('user_id', user.id)
-    .order('created_at', { ascending: false });
+  try {
+    const { data, error } = await withTimeout(
+      supabase
+        .from('tasks')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+    );
 
-  if (error) {
+    if (error) {
+      console.error('Error fetching tasks:', error);
+      return [];
+    }
+
+    // Convert to legacy format for compatibility
+    return data.map(task => ({
+      id: task.id,
+      text: task.text,
+      completed: task.completed,
+      createdAt: new Date(task.created_at).getTime(),
+      completedAt: task.completed_at ? new Date(task.completed_at).getTime() : null,
+      color: task.color || 'none'
+    }));
+  } catch (error) {
     console.error('Error fetching tasks:', error);
     return [];
   }
-
-  // Convert to legacy format for compatibility
-  return data.map(task => ({
-    id: task.id,
-    text: task.text,
-    completed: task.completed,
-    createdAt: new Date(task.created_at).getTime(),
-    completedAt: task.completed_at ? new Date(task.completed_at).getTime() : null,
-    color: task.color || 'none'
-  }));
 }
 
 /**
@@ -175,30 +203,37 @@ export async function addTask(text) {
   const user = await getCurrentUser();
   if (!user) return null;
 
-  const { data, error } = await supabase
-    .from('tasks')
-    .insert({
-      user_id: user.id,
-      text: text.trim(),
-      completed: false,
-      color: 'none'
-    })
-    .select()
-    .single();
+  try {
+    const { data, error } = await withTimeout(
+      supabase
+        .from('tasks')
+        .insert({
+          user_id: user.id,
+          text: text.trim(),
+          completed: false,
+          color: 'none'
+        })
+        .select()
+        .single()
+    );
 
-  if (error) {
+    if (error) {
+      console.error('Error adding task:', error);
+      throw new Error('Не удалось добавить задачу');
+    }
+
+    return {
+      id: data.id,
+      text: data.text,
+      completed: data.completed,
+      createdAt: new Date(data.created_at).getTime(),
+      completedAt: null,
+      color: data.color
+    };
+  } catch (error) {
     console.error('Error adding task:', error);
-    return null;
+    throw error;
   }
-
-  return {
-    id: data.id,
-    text: data.text,
-    completed: data.completed,
-    createdAt: new Date(data.created_at).getTime(),
-    completedAt: null,
-    color: data.color
-  };
 }
 
 /**
@@ -224,27 +259,35 @@ export async function updateTask(id, updates) {
   }
   if (updates.color !== undefined) supabaseUpdates.color = updates.color;
 
-  const { data, error } = await supabase
-    .from('tasks')
-    .update(supabaseUpdates)
-    .eq('id', id)
-    .eq('user_id', user.id)
-    .select()
-    .single();
+  try {
+    const { data, error } = await withTimeout(
+      supabase
+        .from('tasks')
+        .update(supabaseUpdates)
+        .eq('id', id)
+        .eq('user_id', user.id)
+        .select()
+        .single(),
+      5000 // 5 second timeout for updates
+    );
 
-  if (error) {
+    if (error) {
+      console.error('Error updating task:', error);
+      return null;
+    }
+
+    return {
+      id: data.id,
+      text: data.text,
+      completed: data.completed,
+      createdAt: new Date(data.created_at).getTime(),
+      completedAt: data.completed_at ? new Date(data.completed_at).getTime() : null,
+      color: data.color
+    };
+  } catch (error) {
     console.error('Error updating task:', error);
     return null;
   }
-
-  return {
-    id: data.id,
-    text: data.text,
-    completed: data.completed,
-    createdAt: new Date(data.created_at).getTime(),
-    completedAt: data.completed_at ? new Date(data.completed_at).getTime() : null,
-    color: data.color
-  };
 }
 
 /**
