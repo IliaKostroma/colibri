@@ -171,8 +171,20 @@
             </div>
           </div>
 
-          <!-- Tasks Backup Section -->
+          <!-- Debug Section -->
           <div class="form-group" style="margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid #e0e0e0;">
+            <label class="form-label">Диагностика</label>
+            <button id="debug-btn" class="btn-secondary" type="button" style="margin-bottom: 0.5rem;">
+              🔍 Показать статус
+            </button>
+            <button id="clear-cache-btn" class="btn-secondary" type="button" style="margin-left: 0.5rem;">
+              🗑️ Очистить кэш
+            </button>
+            <div id="debug-output" style="margin-top: 0.5rem; padding: 0.5rem; background: #f5f5f5; border-radius: 4px; font-size: 12px; font-family: monospace; white-space: pre-wrap; display: none;"></div>
+          </div>
+
+          <!-- Tasks Backup Section -->
+          <div class="form-group" style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid #e0e0e0;">
             <label class="form-label">Резервное копирование задач</label>
             <p class="form-hint" style="margin-bottom: 1rem;">Создайте полный слепок (snapshot) всех задач в Markdown файл</p>
 

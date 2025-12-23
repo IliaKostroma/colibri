@@ -1148,6 +1148,75 @@ function bindEvents() {
       saveSettings();
     }
   });
+
+  // Debug buttons
+  document.getElementById('debug-btn')?.addEventListener('click', showDebugInfo);
+  document.getElementById('clear-cache-btn')?.addEventListener('click', clearAllCacheAndReload);
+}
+
+// ============================================================================
+// Debug Functions
+// ============================================================================
+
+async function showDebugInfo() {
+  const output = document.getElementById('debug-output');
+  if (!output) return;
+
+  output.style.display = 'block';
+  output.textContent = 'Загрузка...';
+
+  try {
+    const cachedTasks = storage.getTasksFromCache();
+    let serverTasks = [];
+    let serverError = null;
+
+    try {
+      serverTasks = await storage.getTasks(true); // force refresh
+    } catch (e) {
+      serverError = e.message;
+    }
+
+    const info = [
+      `📱 User Agent: ${navigator.userAgent.slice(0, 50)}...`,
+      `👤 User: ${state.user?.email || 'не авторизован'}`,
+      `🔐 Authenticated: ${state.isAuthenticated}`,
+      `💾 Cached tasks: ${cachedTasks.length}`,
+      `☁️ Server tasks: ${serverError ? 'ОШИБКА: ' + serverError : serverTasks.length}`,
+      `📶 Online: ${navigator.onLine}`,
+      `🕐 Time: ${new Date().toLocaleString('ru-RU')}`,
+      ``,
+      `LocalStorage test: ${testLocalStorage() ? 'OK' : 'FAILED'}`,
+    ];
+
+    output.textContent = info.join('\n');
+  } catch (e) {
+    output.textContent = 'Ошибка диагностики: ' + e.message;
+  }
+}
+
+function testLocalStorage() {
+  try {
+    localStorage.setItem('test', 'test');
+    localStorage.removeItem('test');
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+function clearAllCacheAndReload() {
+  if (!confirm('Очистить весь кэш и перезагрузить? Вам нужно будет войти заново.')) {
+    return;
+  }
+
+  try {
+    localStorage.clear();
+    sessionStorage.clear();
+  } catch (e) {
+    console.error('Failed to clear storage:', e);
+  }
+
+  window.location.reload();
 }
 
 function initSpeechRecognition() {
