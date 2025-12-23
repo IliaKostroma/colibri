@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Восстановление Задач - Voice Transcriber</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      line-height: 1.6;
+      color: #333;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 2rem;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      padding: 2rem;
+    }
+
+    h1 {
+      color: #667eea;
+      margin-bottom: 0.5rem;
+      font-size: 2rem;
+    }
+
+    .subtitle {
+      color: #666;
+      margin-bottom: 2rem;
+      font-size: 0.9rem;
+    }
+
+    .section {
+      margin-bottom: 2rem;
+      padding: 1.5rem;
+      background: #f8f9fa;
+      border-radius: 8px;
+      border-left: 4px solid #667eea;
+    }
+
+    .section h2 {
+      color: #333;
+      margin-bottom: 1rem;
+      font-size: 1.3rem;
+    }
+
+    .info-box {
+      background: #e7f3ff;
+      border-left: 4px solid #2196F3;
+      padding: 1rem;
+      margin-bottom: 1rem;
+      border-radius: 4px;
+    }
+
+    .warning-box {
+      background: #fff3cd;
+      border-left: 4px solid #ff9800;
+      padding: 1rem;
+      margin-bottom: 1rem;
+      border-radius: 4px;
+    }
+
+    .success-box {
+      background: #d4edda;
+      border-left: 4px solid #28a745;
+      padding: 1rem;
+      margin-bottom: 1rem;
+      border-radius: 4px;
+    }
+
+    .error-box {
+      background: #f8d7da;
+      border-left: 4px solid #dc3545;
+      padding: 1rem;
+      margin-bottom: 1rem;
+      border-radius: 4px;
+    }
+
+    .btn {
+      background: #667eea;
+      color: white;
+      border: none;
+      padding: 0.75rem 1.5rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 1rem;
+      font-weight: 500;
+      transition: all 0.2s;
+      margin-right: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .btn:hover {
+      background: #5568d3;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+    }
+
+    .btn:active {
+      transform: translateY(0);
+    }
+
+    .btn-secondary {
+      background: #6c757d;
+    }
+
+    .btn-secondary:hover {
+      background: #5a6268;
+    }
+
+    .btn-success {
+      background: #28a745;
+    }
+
+    .btn-success:hover {
+      background: #218838;
+    }
+
+    .tasks-list {
+      list-style: none;
+      margin-top: 1rem;
+    }
+
+    .task-item {
+      background: white;
+      padding: 0.75rem;
+      margin-bottom: 0.5rem;
+      border-radius: 4px;
+      border-left: 3px solid #667eea;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .task-item.completed {
+      opacity: 0.6;
+      border-left-color: #28a745;
+    }
+
+    .task-checkbox {
+      width: 20px;
+      height: 20px;
+      cursor: pointer;
+    }
+
+    .task-text {
+      flex: 1;
+    }
+
+    .task-text.completed {
+      text-decoration: line-through;
+      color: #666;
+    }
+
+    .task-date {
+      font-size: 0.8rem;
+      color: #999;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 200px;
+      padding: 0.75rem;
+      border: 2px solid #e0e0e0;
+      border-radius: 6px;
+      font-family: 'Courier New', monospace;
+      font-size: 0.85rem;
+      resize: vertical;
+    }
+
+    textarea:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+
+    input[type="file"] {
+      margin-bottom: 1rem;
+    }
+
+    .stat {
+      display: inline-block;
+      background: #667eea;
+      color: white;
+      padding: 0.5rem 1rem;
+      border-radius: 20px;
+      margin-right: 0.5rem;
+      margin-bottom: 0.5rem;
+      font-size: 0.9rem;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    code {
+      background: #f4f4f4;
+      padding: 0.2rem 0.4rem;
+      border-radius: 3px;
+      font-family: 'Courier New', monospace;
+      font-size: 0.9em;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔧 Восстановление Задач</h1>
+    <p class="subtitle">Инструмент для экспорта, импорта и восстановления задач Voice Transcriber</p>
+
+    <!-- Current Status Section -->
+    <div class="section">
+      <h2>📊 Текущий Статус</h2>
+      <div id="status-info">
+        <p><strong>Текущий порт:</strong> <code id="current-port">—</code></p>
+        <p><strong>Задач в localStorage:</strong> <span class="stat" id="tasks-count">0</span></p>
+        <div id="tasks-stats" class="hidden">
+          <span class="stat" id="completed-count">0 выполнено</span>
+          <span class="stat" id="active-count">0 активных</span>
+        </div>
+      </div>
+
+      <div id="tasks-container" class="hidden">
+        <h3 style="margin-top: 1.5rem; margin-bottom: 0.5rem;">Ваши задачи:</h3>
+        <ul class="tasks-list" id="tasks-list"></ul>
+      </div>
+
+      <div id="no-tasks-info" class="warning-box">
+        <strong>⚠️ Задачи не найдены</strong>
+        <p>В localStorage на текущем порту нет сохраненных задач.</p>
+        <p>Если задачи были на другом порту, попробуйте:</p>
+        <ul style="margin-top: 0.5rem; margin-left: 1.5rem;">
+          <li>Открыть приложение на другом порту (например, :5174 вместо :5173)</li>
+          <li>Импортировать задачи из резервной копии (если есть)</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Export Section -->
+    <div class="section">
+      <h2>💾 Экспорт Задач</h2>
+      <p>Сохраните текущие задачи в файл для резервной копии:</p>
+      <button class="btn" onclick="exportToFile()">Скачать JSON</button>
+      <button class="btn btn-secondary" onclick="copyToClipboard()">Скопировать в буфер</button>
+
+      <div id="export-preview" class="hidden">
+        <h3 style="margin-top: 1rem; margin-bottom: 0.5rem;">Предпросмотр:</h3>
+        <textarea id="export-data" readonly></textarea>
+      </div>
+    </div>
+
+    <!-- Import Section -->
+    <div class="section">
+      <h2>📥 Импорт Задач</h2>
+      <p>Восстановите задачи из резервной копии:</p>
+
+      <div style="margin-bottom: 1rem;">
+        <label>
+          <input type="checkbox" id="merge-checkbox" checked>
+          Объединить с текущими задачами (не заменять)
+        </label>
+      </div>
+
+      <input type="file" id="file-input" accept=".json" onchange="handleFileSelect(event)">
+
+      <h3 style="margin-top: 1rem; margin-bottom: 0.5rem;">Или вставьте JSON:</h3>
+      <textarea id="import-data" placeholder='{"version": 1, "tasks": [...]}'></textarea>
+      <button class="btn btn-success" onclick="importFromText()">Импортировать</button>
+
+      <div id="import-result" class="hidden"></div>
+    </div>
+
+    <!-- Instructions Section -->
+    <div class="section">
+      <h2>❓ Как восстановить потерянные задачи</h2>
+      <div class="info-box">
+        <p><strong>Задачи привязаны к порту!</strong></p>
+        <p>localStorage хранится отдельно для каждого порта. Если приложение раньше работало на <code>localhost:5174</code>, а сейчас на <code>localhost:5173</code> - задачи находятся на старом порту.</p>
+      </div>
+
+      <h3 style="margin-top: 1rem; margin-bottom: 0.5rem;">Шаги для восстановления:</h3>
+      <ol style="margin-left: 1.5rem;">
+        <li style="margin-bottom: 0.5rem;">Попробуйте открыть эту страницу на другом порту (5174, 5175, и т.д.)</li>
+        <li style="margin-bottom: 0.5rem;">Если найдете задачи - сделайте экспорт</li>
+        <li style="margin-bottom: 0.5rem;">Вернитесь на основной порт и импортируйте задачи</li>
+        <li style="margin-bottom: 0.5rem;"><strong>Совет:</strong> Регулярно делайте резервные копии!</li>
+      </ol>
+    </div>
+  </div>
+
+  <script type="module">
+    const TASKS_STORAGE_KEY = 'voice-transcriber-tasks';
+
+    // Get current port
+    document.getElementById('current-port').textContent = window.location.port || '80';
+
+    // Load and display tasks
+    function loadTasks() {
+      const stored = localStorage.getItem(TASKS_STORAGE_KEY);
+      if (!stored) {
+        document.getElementById('no-tasks-info').classList.remove('hidden');
+        document.getElementById('tasks-container').classList.add('hidden');
+        document.getElementById('tasks-stats').classList.add('hidden');
+        return [];
+      }
+
+      try {
+        const tasks = JSON.parse(stored);
+        if (tasks.length > 0) {
+          document.getElementById('no-tasks-info').classList.add('hidden');
+          document.getElementById('tasks-container').classList.remove('hidden');
+          document.getElementById('tasks-stats').classList.remove('hidden');
+          displayTasks(tasks);
+        }
+        return tasks;
+      } catch {
+        return [];
+      }
+    }
+
+    function displayTasks(tasks) {
+      const tasksList = document.getElementById('tasks-list');
+      const completedCount = tasks.filter(t => t.completed).length;
+      const activeCount = tasks.length - completedCount;
+
+      document.getElementById('tasks-count').textContent = tasks.length;
+      document.getElementById('completed-count').textContent = `${completedCount} выполнено`;
+      document.getElementById('active-count').textContent = `${activeCount} активных`;
+
+      tasksList.innerHTML = tasks.map(task => {
+        const date = new Date(task.createdAt).toLocaleDateString('ru-RU');
+        return `
+          <li class="task-item ${task.completed ? 'completed' : ''}">
+            <input type="checkbox" class="task-checkbox" ${task.completed ? 'checked' : ''} disabled>
+            <div class="task-text ${task.completed ? 'completed' : ''}">${task.text}</div>
+            <div class="task-date">${date}</div>
+          </li>
+        `;
+      }).join('');
+    }
+
+    // Export functions
+    window.exportToFile = function() {
+      const tasks = loadTasks();
+      if (tasks.length === 0) {
+        alert('Нет задач для экспорта');
+        return;
+      }
+
+      const data = {
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        tasks: tasks
+      };
+
+      const json = JSON.stringify(data, null, 2);
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `voice-transcriber-tasks-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      // Show preview
+      document.getElementById('export-preview').classList.remove('hidden');
+      document.getElementById('export-data').value = json;
+    };
+
+    window.copyToClipboard = function() {
+      const tasks = loadTasks();
+      if (tasks.length === 0) {
+        alert('Нет задач для копирования');
+        return;
+      }
+
+      const data = {
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        tasks: tasks
+      };
+
+      const json = JSON.stringify(data, null, 2);
+      navigator.clipboard.writeText(json).then(() => {
+        alert('✅ Скопировано в буфер обмена!');
+        document.getElementById('export-preview').classList.remove('hidden');
+        document.getElementById('export-data').value = json;
+      });
+    };
+
+    // Import functions
+    window.handleFileSelect = function(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        document.getElementById('import-data').value = e.target.result;
+      };
+      reader.readAsText(file);
+    };
+
+    window.importFromText = function() {
+      const jsonText = document.getElementById('import-data').value.trim();
+      if (!jsonText) {
+        showImportResult('error', 'Вставьте JSON данные для импорта');
+        return;
+      }
+
+      try {
+        const data = JSON.parse(jsonText);
+
+        if (!data.tasks || !Array.isArray(data.tasks)) {
+          showImportResult('error', 'Неверный формат данных');
+          return;
+        }
+
+        const merge = document.getElementById('merge-checkbox').checked;
+        let tasksToSave = data.tasks;
+
+        if (merge) {
+          const existing = loadTasks();
+          const existingIds = new Set(existing.map(t => t.id));
+          const newTasks = tasksToSave.filter(t => !existingIds.has(t.id));
+          tasksToSave = [...existing, ...newTasks];
+        }
+
+        localStorage.setItem(TASKS_STORAGE_KEY, JSON.stringify(tasksToSave));
+
+        showImportResult('success', `✅ Успешно импортировано ${tasksToSave.length} задач!`);
+
+        // Reload display
+        setTimeout(() => {
+          location.reload();
+        }, 1500);
+
+      } catch (error) {
+        showImportResult('error', `Ошибка: ${error.message}`);
+      }
+    };
+
+    function showImportResult(type, message) {
+      const resultDiv = document.getElementById('import-result');
+      resultDiv.className = type === 'success' ? 'success-box' : 'error-box';
+      resultDiv.innerHTML = `<strong>${message}</strong>`;
+      resultDiv.classList.remove('hidden');
+
+      if (type === 'success') {
+        setTimeout(() => {
+          resultDiv.classList.add('hidden');
+        }, 3000);
+      }
+    }
+
+    // Initial load
+    loadTasks();
+  </script>
+</body>
+</html>

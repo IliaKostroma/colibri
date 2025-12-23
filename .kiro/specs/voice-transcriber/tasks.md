@@ -1,0 +1,105 @@
+# Implementation Plan
+
+- [x] 1. Set up project structure and configuration
+  - Create directory structure: `src/`, `src/services/`, `src/styles/`
+  - Create `index.html` with basic HTML structure
+  - Create `src/styles/main.css` with CSS variables and base styles
+  - Create `src/app.js` as main entry point
+  - Set up Vitest and fast-check for testing
+  - _Requirements: 6.1, 6.2_
+
+- [x] 2. Implement StorageService
+  - [x] 2.1 Create StorageService module
+    - Implement `saveApiKey(key)` method to store API key in localStorage
+    - Implement `getApiKey()` method to retrieve API key from localStorage
+    - Implement `removeApiKey()` method to delete API key
+    - _Requirements: 5.2, 5.3_
+  - [x] 2.2 Write property test for API key round-trip
+    - **Property 4: API key persistence round-trip**
+    - **Validates: Requirements 5.2, 5.3**
+  - [x] 2.3 Write unit tests for StorageService
+    - Test save, get, remove operations
+    - Test behavior when localStorage is empty
+    - _Requirements: 5.2, 5.3_
+
+- [x] 3. Implement OpenAIService
+  - [x] 3.1 Create OpenAIService module
+    - Implement `setApiKey(key)` and `hasApiKey()` methods
+    - Implement `improveText(text)` method with improvement prompt
+    - Implement `translateToEnglish(text)` method with translation prompt
+    - Handle API errors and return appropriate error messages
+    - _Requirements: 3.1, 3.2, 3.4, 3.5, 3.6, 4.1, 4.2, 4.3_
+  - [x] 3.2 Write property test for text preservation on error
+    - **Property 2: Text preservation on error**
+    - **Validates: Requirements 3.8, 4.6**
+  - [x] 3.3 Write unit tests for OpenAIService
+    - Test request formation with correct prompts
+    - Test successful response handling
+    - Test error handling
+    - _Requirements: 3.1, 3.8, 4.1, 4.6_
+
+- [x] 4. Implement SpeechRecognitionService
+  - [x] 4.1 Create SpeechRecognitionService module
+    - Implement `isSupported()` method to check browser compatibility
+    - Implement `start()` method to begin recording
+    - Implement `stop()` method to end recording
+    - Set up callbacks: `onResult`, `onError`, `onStateChange`
+    - Configure continuous recognition and interim results
+    - _Requirements: 1.1, 1.2, 1.3, 1.4_
+  - [x] 4.2 Write property test for recording state consistency
+    - **Property 1: Recording state consistency**
+    - **Validates: Requirements 1.1, 1.2, 1.3**
+  - [x] 4.3 Write unit tests for SpeechRecognitionService
+    - Test isSupported detection
+    - Test start/stop state transitions
+    - Test result callback handling
+    - _Requirements: 1.1, 1.2, 1.4_
+
+- [x] 5. Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 6. Implement UI Components
+  - [x] 6.1 Create HTML structure
+    - Add header with title and settings button
+    - Add textarea for transcribed text
+    - Add action buttons: record, copy, improve, translate
+    - Add settings modal with API key input
+    - Add notification area for messages
+    - _Requirements: 6.2, 6.3_
+  - [x] 6.2 Create CSS styles
+    - Define CSS variables for colors, spacing, typography
+    - Style textarea with proper sizing and appearance
+    - Style buttons with hover/active/disabled states
+    - Style settings modal
+    - Add loading spinner styles
+    - Implement responsive layout with media queries
+    - _Requirements: 6.1, 6.2, 6.3, 6.4_
+
+- [x] 7. Implement State Management and UI Logic
+  - [x] 7.1 Create app state and UI controller
+    - Define initial app state (text, isRecording, isProcessing, etc.)
+    - Implement state update functions
+    - Connect UI elements to state changes
+    - Implement button enable/disable logic based on state
+    - _Requirements: 2.3, 3.3, 3.7, 4.4, 4.5, 6.4_
+  - [x] 7.2 Write property test for button state consistency
+    - **Property 3: Button state consistency**
+    - **Validates: Requirements 2.3, 3.7, 4.5**
+
+- [x] 8. Wire up all components
+  - [x] 8.1 Integrate services with UI
+    - Connect record button to SpeechRecognitionService
+    - Connect copy button to clipboard API
+    - Connect improve button to OpenAIService.improveText
+    - Connect translate button to OpenAIService.translateToEnglish
+    - Connect settings modal to StorageService
+    - Display transcription results in textarea in real-time
+    - Show loading states during API calls
+    - Display error messages and notifications
+    - _Requirements: 1.1, 1.2, 2.1, 2.2, 3.1, 3.2, 4.1, 4.2, 5.1, 5.4_
+  - [x] 8.2 Write property test for transcription accumulation
+    - **Property 5: Transcription accumulation**
+    - **Validates: Requirements 1.1, 1.2**
+
+- [x] 9. Final Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.

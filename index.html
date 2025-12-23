@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>COLIBRI</title>
+  <link rel="stylesheet" href="src/styles/main.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Header -->
+    <header class="header">
+      <h1 class="header__title">COLIBRI</h1>
+      <span id="user-email" class="user-email" hidden></span>
+      <button id="logout-btn" class="btn-icon" aria-label="Выйти" title="Выйти" hidden>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+          <polyline points="16 17 21 12 16 7"></polyline>
+          <line x1="21" y1="12" x2="9" y2="12"></line>
+        </svg>
+      </button>
+      <button id="settings-btn" class="btn-icon" aria-label="Настройки" title="Настройки">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </button>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main">
+      <!-- Text Area -->
+      <div class="textarea-container">
+        <textarea 
+          id="text-area" 
+          class="text-area" 
+          placeholder="Нажмите кнопку записи и начните говорить..."
+          aria-label="Транскрибированный текст"
+        ></textarea>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="actions">
+        <button id="record-btn" class="btn-action btn-record" aria-label="Начать запись" title="Начать запись">
+          <svg class="icon-mic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+            <line x1="12" y1="19" x2="12" y2="23"></line>
+            <line x1="8" y1="23" x2="16" y2="23"></line>
+          </svg>
+          <span class="btn-text">Запись</span>
+        </button>
+
+        <button id="copy-btn" class="btn-action btn-secondary" disabled aria-label="Копировать текст" title="Копировать текст">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+          </svg>
+          <span class="btn-text">Копировать</span>
+        </button>
+
+        <button id="improve-btn" class="btn-action btn-primary" disabled aria-label="Улучшить текст" title="Улучшить текст">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+          </svg>
+          <span class="btn-text">Улучшить</span>
+        </button>
+
+        <button id="translate-btn" class="btn-action btn-primary" disabled aria-label="Перевести на английский" title="Перевести на английский">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="2" y1="12" x2="22" y2="12"></line>
+            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+          </svg>
+          <span class="btn-text">Перевести</span>
+        </button>
+
+        <button id="undo-btn" class="btn-action btn-undo" disabled hidden aria-label="Вернуть оригинал" title="Вернуть оригинальный текст">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 7v6h6"></path>
+            <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"></path>
+          </svg>
+          <span class="btn-text">Вернуть</span>
+        </button>
+
+        <button id="create-task-btn" class="btn-action btn-task" disabled aria-label="Создать задачу" title="Создать задачу из текста">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 5v14"></path>
+            <path d="M5 12h14"></path>
+          </svg>
+          <span class="btn-text">Задача</span>
+        </button>
+      </div>
+
+      <!-- Tasks Section -->
+      <section id="tasks-section" class="tasks-section">
+        <div class="tasks-header">
+          <h2 class="tasks-title">Задачи <span id="tasks-count" class="tasks-count"></span></h2>
+        </div>
+        <ul id="tasks-list" class="tasks-list"></ul>
+      </section>
+    </main>
+
+    <!-- Notification Area -->
+    <div id="notification" class="notification" role="alert" aria-live="polite" hidden></div>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="modal" hidden>
+      <div class="modal__backdrop"></div>
+      <div class="modal__content" role="dialog" aria-labelledby="modal-title" aria-modal="true">
+        <div class="modal__header">
+          <h2 id="modal-title" class="modal__title">Настройки</h2>
+          <button id="modal-close-btn" class="btn-icon" aria-label="Закрыть">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+        <div class="modal__body">
+          <div class="form-group">
+            <label for="provider-select" class="form-label">AI Провайдер</label>
+            <select id="provider-select" class="form-select">
+              <option value="openai">OpenAI</option>
+              <option value="openrouter">OpenRouter (бесплатно)</option>
+            </select>
+          </div>
+
+          <!-- OpenAI Settings -->
+          <div id="openai-settings">
+            <div class="form-group" style="margin-top: 1rem;">
+              <label for="api-key-input" class="form-label">OpenAI API Key</label>
+              <input
+                type="password"
+                id="api-key-input"
+                class="form-input"
+                placeholder="sk-..."
+                autocomplete="off"
+              >
+              <p class="form-hint">Ключ хранится локально в вашем браузере</p>
+            </div>
+
+            <div class="form-group" style="margin-top: 1rem;">
+              <label for="model-select" class="form-label">Модель</label>
+              <select id="model-select" class="form-select">
+                <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                <option value="gpt-4o-mini">GPT-4o Mini</option>
+              </select>
+              <p class="form-hint">GPT-4o Mini дороже, но качественнее</p>
+            </div>
+          </div>
+
+          <!-- OpenRouter Settings -->
+          <div id="openrouter-settings" style="display: none;">
+            <div class="form-group" style="margin-top: 1rem;">
+              <label for="openrouter-api-key-input" class="form-label">OpenRouter API Key</label>
+              <input
+                type="password"
+                id="openrouter-api-key-input"
+                class="form-input"
+                placeholder="sk-or-..."
+                autocomplete="off"
+              >
+              <p class="form-hint">Бесплатные модели для улучшения и перевода текста</p>
+            </div>
+          </div>
+
+          <!-- Tasks Backup Section -->
+          <div class="form-group" style="margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid #e0e0e0;">
+            <label class="form-label">Резервное копирование задач</label>
+            <p class="form-hint" style="margin-bottom: 1rem;">Создайте полный слепок (snapshot) всех задач в Markdown файл</p>
+
+            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.75rem;">
+              <button id="export-markdown-btn" class="btn-secondary" type="button">
+                💾 Сохранить слепок (.md)
+              </button>
+              <button id="import-markdown-btn" class="btn-secondary" type="button">
+                🔄 Восстановить слепок (.md)
+              </button>
+            </div>
+
+            <input
+              type="file"
+              id="markdown-file-input"
+              accept=".md,.markdown,.txt"
+              style="display: none;"
+            >
+
+            <p class="form-hint" style="font-size: 0.85rem; color: #666;">
+              ⚠️ <strong>Внимание:</strong> При восстановлении слепка ВСЕ текущие задачи будут ЗАМЕНЕНЫ на задачи из файла.
+            </p>
+            <p class="form-hint" style="font-size: 0.85rem; color: #666;">
+              💡 Слепок = полная резервная копия. Сохраняйте регулярно!
+            </p>
+          </div>
+        </div>
+        <div class="modal__footer">
+          <button id="save-api-key-btn" class="btn-primary">Сохранить</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Auth Modal -->
+    <div id="auth-modal" class="modal auth-modal">
+      <div class="modal__backdrop auth-backdrop"></div>
+      <div class="modal__content auth-content" role="dialog" aria-labelledby="auth-modal-title" aria-modal="true">
+        <div class="auth-header">
+          <div class="auth-logo">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 19l-7-7 7-7"></path>
+              <path d="M19 12H5"></path>
+              <circle cx="12" cy="12" r="10"></circle>
+            </svg>
+          </div>
+          <h1 class="auth-title">COLIBRI</h1>
+          <p class="auth-subtitle">Управление задачами с голосовым вводом</p>
+        </div>
+
+        <div id="auth-error" class="auth-error" hidden></div>
+
+        <form id="auth-form" class="auth-form">
+          <div class="form-group">
+            <label for="auth-email" class="form-label">Email</label>
+            <input
+              type="email"
+              id="auth-email"
+              class="form-input"
+              placeholder="your@email.com"
+              required
+              autocomplete="email"
+            >
+          </div>
+
+          <div class="form-group">
+            <label for="auth-password" class="form-label">Пароль</label>
+            <input
+              type="password"
+              id="auth-password"
+              class="form-input"
+              placeholder="Минимум 6 символов"
+              required
+              minlength="6"
+              autocomplete="current-password"
+            >
+          </div>
+
+          <button type="submit" id="auth-login-btn" class="btn-primary auth-btn-main">
+            Войти
+          </button>
+        </form>
+
+        <div class="auth-divider">
+          <span>или</span>
+        </div>
+
+        <button type="button" id="auth-signup-btn" class="btn-secondary auth-btn-secondary">
+          Создать аккаунт
+        </button>
+      </div>
+    </div>
+  </div>
+  <script type="module" src="src/app.js"></script>
+</body>
+</html>
