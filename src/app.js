@@ -304,6 +304,7 @@ async function handleSignup(e) {
 async function handleLogout() {
   await signOut();
   clearCachedAuthState();
+  storage.clearTasksCache();
   updateState({ isAuthenticated: false, user: null, hasApiKey: false });
   // Clear tasks list
   if (elements.tasksList) {
@@ -1010,10 +1011,16 @@ function createDateSeparator(label) {
   return li;
 }
 
-export async function renderTasks() {
+// Debounce timer for renderTasks
+let renderDebounceTimer = null;
+let isRendering = false;
+
+/**
+ * Render tasks from given array
+ */
+function renderTasksFromArray(tasks) {
   if (!elements.tasksList || !elements.tasksCount) return;
 
-  const tasks = await storage.getTasksSorted();
   const total = tasks.length;
   const completedCount = tasks.filter(t => t.completed).length;
 
@@ -1025,8 +1032,9 @@ export async function renderTasks() {
     return;
   }
 
-  const incompleteTasks = tasks.filter(t => !t.completed);
-  const completedTasks = tasks.filter(t => t.completed);
+  // Sort: incomplete first (newest), then completed (by completion date)
+  const incompleteTasks = tasks.filter(t => !t.completed).sort((a, b) => b.createdAt - a.createdAt);
+  const completedTasks = tasks.filter(t => t.completed).sort((a, b) => (b.completedAt || b.createdAt) - (a.completedAt || a.createdAt));
 
   incompleteTasks.forEach(task => {
     elements.tasksList.appendChild(createTaskElement(task));
@@ -1054,6 +1062,45 @@ export async function renderTasks() {
         elements.tasksList.appendChild(createTaskElement(task));
       });
     });
+  }
+}
+
+/**
+ * Render tasks with debouncing to prevent multiple rapid re-renders
+ */
+export async function renderTasks() {
+  // Clear any pending render
+  if (renderDebounceTimer) {
+    clearTimeout(renderDebounceTimer);
+  }
+
+  // If already rendering, schedule for later
+  if (isRendering) {
+    renderDebounceTimer = setTimeout(() => renderTasks(), 100);
+    return;
+  }
+
+  isRendering = true;
+
+  try {
+    // First, render from cache immediately (instant UI)
+    const cachedTasks = storage.getTasksFromCache();
+    if (cachedTasks.length > 0) {
+      renderTasksFromArray(cachedTasks);
+    }
+
+    // Then fetch fresh data from server
+    const tasks = await storage.getTasks();
+    renderTasksFromArray(tasks);
+  } catch (error) {
+    console.error('Error rendering tasks:', error);
+    // On error, try to show cached data
+    const cachedTasks = storage.getTasksFromCache();
+    if (cachedTasks.length > 0) {
+      renderTasksFromArray(cachedTasks);
+    }
+  } finally {
+    isRendering = false;
   }
 }
 
@@ -1240,7 +1287,11 @@ async function init() {
       await loadUserData();
     } else if (event === 'SIGNED_OUT') {
       clearCachedAuthState();
+      storage.clearTasksCache();
       updateState({ isAuthenticated: false, user: null, hasApiKey: false });
+      if (elements.tasksList) {
+        elements.tasksList.innerHTML = '';
+      }
     }
   });
 
