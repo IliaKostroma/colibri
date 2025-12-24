@@ -487,6 +487,9 @@ textarea {
 
 .modal__body {
   padding: var(--spacing-lg);
+  max-height: 60vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .modal__footer {
