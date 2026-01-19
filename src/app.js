@@ -59,6 +59,7 @@ const elements = {
   tasksSection: null,
   tasksList: null,
   tasksCount: null,
+  syncIndicator: null,
   // Auth elements
   authModal: null,
   authForm: null,
@@ -302,6 +303,9 @@ async function handleSignup(e) {
 }
 
 async function handleLogout() {
+  // Stop background sync
+  storage.stopAutoSync();
+
   await signOut();
   clearCachedAuthState();
   storage.clearTasksCache();
@@ -483,8 +487,8 @@ export async function saveSettings() {
   closeSettingsModal();
 }
 
-export async function exportMarkdownFile() {
-  const tasks = await storage.getTasks();
+export function exportMarkdownFile() {
+  const tasks = storage.getTasks();
 
   if (tasks.length === 0) {
     showNotification('Нет задач для экспорта', 'error');
@@ -492,7 +496,7 @@ export async function exportMarkdownFile() {
   }
 
   try {
-    const markdown = await storage.exportTasksToMarkdown();
+    const markdown = storage.exportTasksToMarkdown();
     const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -511,7 +515,7 @@ export async function exportMarkdownFile() {
   }
 }
 
-export async function importMarkdownFile(event) {
+export function importMarkdownFile(event) {
   const file = event.target.files?.[0];
   if (!file) return;
 
@@ -523,7 +527,7 @@ export async function importMarkdownFile(event) {
 
       if (result.success) {
         showNotification(`Слепок восстановлен: ${result.count} задач`, 'success');
-        await renderTasks();
+        renderTasks();
 
         if (elements.markdownFileInput) {
           elements.markdownFileInput.value = '';
@@ -728,29 +732,21 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
-export async function createTask() {
+export function createTask() {
   const text = state.text.trim();
   if (!text) return;
 
-  // Disable button during creation
-  if (elements.createTaskBtn) {
-    elements.createTaskBtn.disabled = true;
-  }
-
   try {
-    await storage.addTask(text);
+    storage.addTask(text);
     setText('');
-    await renderTasks();
+    renderTasks();
     showNotification('Задача создана', 'success');
   } catch (error) {
     showError(error.message || 'Не удалось создать задачу');
-  } finally {
-    // Re-enable button
-    updateButtonStates();
   }
 }
 
-export async function toggleTaskComplete(taskId) {
+export function toggleTaskComplete(taskId) {
   // Optimistic UI update - update DOM immediately
   const taskElement = document.querySelector(`[data-task-id="${taskId}"]`);
   const checkbox = taskElement?.querySelector('input[type="checkbox"]');
@@ -760,18 +756,18 @@ export async function toggleTaskComplete(taskId) {
     taskElement.classList.toggle('task-completed', isNowCompleted);
   }
 
-  // Then update in background
-  storage.updateTask(taskId, { completed: isNowCompleted }).then(() => {
-    // Only re-render if we need to move task to different section
-    renderTasks();
-  });
+  // Update in background (non-blocking)
+  storage.updateTask(taskId, { completed: isNowCompleted });
+
+  // Re-render to move task to correct section
+  renderTasks();
 }
 
-export async function startEditTask(taskId) {
+export function startEditTask(taskId) {
   const taskElement = document.querySelector(`[data-task-id="${taskId}"]`);
   if (!taskElement) return;
 
-  const tasks = await storage.getTasks();
+  const tasks = storage.getTasks();
   const task = tasks.find(t => t.id === taskId);
   if (!task) return;
 
@@ -783,16 +779,16 @@ export async function startEditTask(taskId) {
   input.className = 'task-edit-input';
   input.value = currentText;
 
-  input.addEventListener('keydown', async (e) => {
+  input.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
-      await saveEditTask(taskId, input.value);
+      saveEditTask(taskId, input.value);
     } else if (e.key === 'Escape') {
-      await renderTasks();
+      renderTasks();
     }
   });
 
-  input.addEventListener('blur', async () => {
-    await saveEditTask(taskId, input.value);
+  input.addEventListener('blur', () => {
+    saveEditTask(taskId, input.value);
   });
 
   textSpan.innerHTML = '';
@@ -801,12 +797,12 @@ export async function startEditTask(taskId) {
   input.select();
 }
 
-export async function saveEditTask(taskId, newText) {
+export function saveEditTask(taskId, newText) {
   const trimmedText = newText.trim();
   if (trimmedText) {
-    await storage.updateTask(taskId, { text: trimmedText });
+    storage.updateTask(taskId, { text: trimmedText });
   }
-  await renderTasks();
+  renderTasks();
 }
 
 const deleteTimers = new Map();
@@ -816,23 +812,23 @@ export function startDeleteCountdown(taskId) {
 
   const endsAt = Date.now() + 5000;
 
-  const timeoutId = setTimeout(async () => {
+  const timeoutId = setTimeout(() => {
     deleteTimers.delete(taskId);
-    await storage.deleteTask(taskId);
-    await renderTasks();
+    storage.deleteTask(taskId);
+    renderTasks();
   }, 5000);
 
   deleteTimers.set(taskId, { timeoutId, endsAt });
   renderTasks();
 }
 
-export async function cancelDeleteCountdown(taskId) {
+export function cancelDeleteCountdown(taskId) {
   const timer = deleteTimers.get(taskId);
   if (timer) {
     clearTimeout(timer.timeoutId);
     deleteTimers.delete(taskId);
   }
-  await renderTasks();
+  renderTasks();
 }
 
 export function isTaskDeleting(taskId) {
@@ -1068,7 +1064,7 @@ function renderTasksFromArray(tasks) {
 /**
  * Render tasks with debouncing to prevent multiple rapid re-renders
  */
-export async function renderTasks() {
+export function renderTasks() {
   // Clear any pending render
   if (renderDebounceTimer) {
     clearTimeout(renderDebounceTimer);
@@ -1083,22 +1079,11 @@ export async function renderTasks() {
   isRendering = true;
 
   try {
-    // First, render from cache immediately (instant UI)
-    const cachedTasks = storage.getTasksFromCache();
-    if (cachedTasks.length > 0) {
-      renderTasksFromArray(cachedTasks);
-    }
-
-    // Then fetch fresh data from server
-    const tasks = await storage.getTasks();
+    // Render from cache (instant UI)
+    const tasks = storage.getTasks();
     renderTasksFromArray(tasks);
   } catch (error) {
     console.error('Error rendering tasks:', error);
-    // On error, try to show cached data
-    const cachedTasks = storage.getTasksFromCache();
-    if (cachedTasks.length > 0) {
-      renderTasksFromArray(cachedTasks);
-    }
   } finally {
     isRendering = false;
   }
@@ -1255,6 +1240,7 @@ function cacheElements() {
   elements.tasksSection = document.getElementById('tasks-section');
   elements.tasksList = document.getElementById('tasks-list');
   elements.tasksCount = document.getElementById('tasks-count');
+  elements.syncIndicator = document.getElementById('sync-indicator');
 
   // Auth elements
   elements.authModal = document.getElementById('auth-modal');
@@ -1299,8 +1285,23 @@ async function loadUserData() {
     : !!savedOpenAIKey;
   updateState({ hasApiKey: hasKey });
 
-  // Load tasks
-  await renderTasks();
+  // Load tasks from cache (instant)
+  renderTasks();
+
+  // Setup sync indicator
+  storage.onSyncStatusChange((status) => {
+    if (elements.syncIndicator) {
+      elements.syncIndicator.hidden = !status.isSyncing && status.queueSize === 0;
+    }
+
+    // Re-render tasks when sync completes with fresh data
+    if (!status.isSyncing && status.queueSize === 0) {
+      renderTasks();
+    }
+  });
+
+  // Start automatic background sync
+  storage.startAutoSync();
 }
 
 async function init() {

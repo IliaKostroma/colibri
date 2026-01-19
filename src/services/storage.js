@@ -35,6 +35,90 @@ const TASKS_CACHE_KEY = 'colibri_tasks_cache';
 let tasksCache = null;
 let lastSyncTime = 0;
 
+// ============================================================================
+// Sync Queue (for offline operations)
+// ============================================================================
+
+let syncQueue = [];
+let isSyncing = false;
+let syncListeners = [];
+
+/**
+ * Add listener for sync status changes
+ * @param {Function} callback - Called with {isSyncing: boolean, queueSize: number}
+ */
+export function onSyncStatusChange(callback) {
+  syncListeners.push(callback);
+}
+
+/**
+ * Notify all sync listeners
+ */
+function notifySyncListeners() {
+  const status = { isSyncing, queueSize: syncQueue.length };
+  syncListeners.forEach(cb => cb(status));
+}
+
+/**
+ * Process sync queue - attempt to sync pending operations
+ */
+async function processSyncQueue() {
+  if (isSyncing || syncQueue.length === 0) return;
+
+  isSyncing = true;
+  notifySyncListeners();
+
+  while (syncQueue.length > 0) {
+    const operation = syncQueue[0];
+
+    try {
+      await operation.execute();
+      syncQueue.shift(); // Remove successful operation
+    } catch (error) {
+      console.warn('Sync operation failed, will retry:', error);
+      break; // Stop processing, will retry later
+    }
+  }
+
+  isSyncing = false;
+  notifySyncListeners();
+}
+
+// ============================================================================
+// Auto-sync (periodic background sync)
+// ============================================================================
+
+let autoSyncInterval = null;
+
+/**
+ * Start automatic background sync (every 15 seconds)
+ */
+export function startAutoSync() {
+  if (autoSyncInterval) return; // Already started
+
+  // Initial sync
+  syncInBackground().catch(err => console.warn('Initial sync failed:', err));
+
+  // Periodic sync every 15 seconds
+  autoSyncInterval = setInterval(() => {
+    // Process pending operations
+    processSyncQueue().catch(err => console.warn('Queue sync failed:', err));
+
+    // Fetch fresh data from server
+    syncInBackground().catch(err => console.warn('Background sync failed:', err));
+  }, 15000);
+}
+
+/**
+ * Stop automatic background sync
+ */
+export function stopAutoSync() {
+  if (autoSyncInterval) {
+    clearInterval(autoSyncInterval);
+    autoSyncInterval = null;
+  }
+}
+
 /**
  * Get cached tasks from localStorage
  * @returns {Array} Cached tasks or empty array
@@ -178,27 +262,25 @@ export async function saveModel(model) {
  * @returns {Promise<Task[]>} Array of tasks
  */
 /**
- * Get tasks - returns cached tasks immediately, fetches from server in background
- * @param {boolean} forceRefresh - If true, always fetch from server
- * @returns {Promise<Task[]>} Array of tasks
+ * Get tasks - ALWAYS returns cached tasks immediately (instant UI)
+ * Use syncInBackground() to fetch fresh data from server
+ * @returns {Task[]} Array of tasks from cache
  */
-export async function getTasks(forceRefresh = false) {
+export function getTasks() {
+  return getCachedTasks();
+}
+
+/**
+ * Sync tasks with server in background (non-blocking)
+ * @returns {Promise<Task[]>} Fresh tasks from server
+ */
+export async function syncInBackground() {
   const user = await getCurrentUser();
   if (!user) {
     clearTasksCache();
     return [];
   }
 
-  // Return cached tasks if available and recent (less than 30 seconds old)
-  const cached = getCachedTasks();
-  const now = Date.now();
-  const cacheAge = now - lastSyncTime;
-
-  if (!forceRefresh && cached.length > 0 && cacheAge < 30000) {
-    return cached;
-  }
-
-  // Try to fetch from server
   try {
     const { data, error } = await withTimeout(
       supabase
@@ -210,9 +292,8 @@ export async function getTasks(forceRefresh = false) {
     );
 
     if (error) {
-      console.error('Error fetching tasks:', error);
-      // Return cached data on error
-      return cached;
+      console.error('Error syncing tasks:', error);
+      return getCachedTasks();
     }
 
     // Convert to legacy format for compatibility
@@ -227,13 +308,12 @@ export async function getTasks(forceRefresh = false) {
 
     // Update cache
     setCachedTasks(tasks);
-    lastSyncTime = now;
+    lastSyncTime = Date.now();
 
     return tasks;
   } catch (error) {
-    console.error('Error fetching tasks:', error);
-    // Return cached data on error/timeout
-    return cached;
+    console.error('Error syncing tasks:', error);
+    return getCachedTasks();
   }
 }
 
@@ -287,17 +367,15 @@ export async function saveTasks(tasks) {
 }
 
 /**
- * Add a new task
+ * Add a new task (instant, non-blocking)
  * @param {string} text - Task text
- * @returns {Promise<Task | null>} The created task
+ * @returns {Task} The created task with temporary ID
  */
-export async function addTask(text) {
-  const user = await getCurrentUser();
-  if (!user) return null;
-
-  // Create optimistic task for immediate display
+export function addTask(text) {
+  // Create optimistic task with temp ID
+  const tempId = 'temp-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
   const optimisticTask = {
-    id: 'temp-' + Date.now(),
+    id: tempId,
     text: text.trim(),
     completed: false,
     createdAt: Date.now(),
@@ -309,182 +387,180 @@ export async function addTask(text) {
   const cached = getCachedTasks();
   setCachedTasks([optimisticTask, ...cached]);
 
-  try {
-    const { data, error } = await withTimeout(
-      supabase
-        .from('tasks')
-        .insert({
-          user_id: user.id,
-          text: text.trim(),
-          completed: false,
-          color: 'none'
-        })
-        .select()
-        .single(),
-      5000
-    );
+  // Queue background sync operation
+  syncQueue.push({
+    type: 'add',
+    tempId,
+    execute: async () => {
+      const currentUser = await getCurrentUser();
+      if (!currentUser) throw new Error('Not authenticated');
 
-    if (error) {
-      // Remove optimistic task on error
-      setCachedTasks(cached);
-      console.error('Error adding task:', error);
-      throw new Error('Не удалось добавить задачу');
+      const { data, error } = await withTimeout(
+        supabase
+          .from('tasks')
+          .insert({
+            user_id: currentUser.id,
+            text: text.trim(),
+            completed: false,
+            color: 'none'
+          })
+          .select()
+          .single(),
+        5000
+      );
+
+      if (error) throw error;
+
+      // Replace temp task with real one
+      const newTask = {
+        id: data.id,
+        text: data.text,
+        completed: data.completed,
+        createdAt: new Date(data.created_at).getTime(),
+        completedAt: null,
+        color: data.color
+      };
+
+      const currentCache = getCachedTasks();
+      const updated = currentCache.map(t => t.id === tempId ? newTask : t);
+      setCachedTasks(updated);
+
+      return newTask;
     }
+  });
 
-    const newTask = {
-      id: data.id,
-      text: data.text,
-      completed: data.completed,
-      createdAt: new Date(data.created_at).getTime(),
-      completedAt: null,
-      color: data.color
-    };
+  // Start processing queue
+  processSyncQueue().catch(err => console.warn('Sync queue error:', err));
 
-    // Replace optimistic task with real one in cache
-    const updatedCache = getCachedTasks().map(t =>
-      t.id === optimisticTask.id ? newTask : t
-    );
-    setCachedTasks(updatedCache);
-
-    return newTask;
-  } catch (error) {
-    // Remove optimistic task on error
-    setCachedTasks(cached);
-    console.error('Error adding task:', error);
-    throw error;
-  }
+  return optimisticTask;
 }
 
 /**
- * Update a task
+ * Update a task (instant, non-blocking)
  * @param {string} id - Task ID
  * @param {Partial<Task>} updates - Properties to update
- * @returns {Promise<Task | null>} Updated task or null if not found
+ * @returns {Task | null} Updated task or null if not found
  */
-export async function updateTask(id, updates) {
-  const user = await getCurrentUser();
-  if (!user) return null;
-
+export function updateTask(id, updates) {
   // Update cache immediately (optimistic update)
   const cached = getCachedTasks();
   const taskIndex = cached.findIndex(t => t.id === id);
-  const originalTask = taskIndex >= 0 ? { ...cached[taskIndex] } : null;
 
-  if (taskIndex >= 0) {
-    const updatedTask = { ...cached[taskIndex], ...updates };
-    if (updates.completed !== undefined) {
-      updatedTask.completedAt = updates.completed ? Date.now() : null;
-    }
-    cached[taskIndex] = updatedTask;
-    setCachedTasks([...cached]);
+  if (taskIndex < 0) return null;
+
+  const updatedTask = { ...cached[taskIndex], ...updates };
+  if (updates.completed !== undefined) {
+    updatedTask.completedAt = updates.completed ? Date.now() : null;
   }
+  cached[taskIndex] = updatedTask;
+  setCachedTasks([...cached]);
 
+  // Queue background sync operation
   const supabaseUpdates = {};
   if (updates.text !== undefined) supabaseUpdates.text = updates.text;
   if (updates.completed !== undefined) {
     supabaseUpdates.completed = updates.completed;
-    if (updates.completed) {
-      supabaseUpdates.completed_at = new Date().toISOString();
-    } else {
-      supabaseUpdates.completed_at = null;
-    }
+    supabaseUpdates.completed_at = updates.completed ? new Date().toISOString() : null;
   }
   if (updates.color !== undefined) supabaseUpdates.color = updates.color;
 
-  try {
-    const { data, error } = await withTimeout(
-      supabase
-        .from('tasks')
-        .update(supabaseUpdates)
-        .eq('id', id)
-        .eq('user_id', user.id)
-        .select()
-        .single(),
-      5000
-    );
+  syncQueue.push({
+    type: 'update',
+    taskId: id,
+    execute: async () => {
+      const currentUser = await getCurrentUser();
+      if (!currentUser) throw new Error('Not authenticated');
 
-    if (error) {
-      // Revert cache on error
-      if (originalTask && taskIndex >= 0) {
-        const revertCache = getCachedTasks();
-        revertCache[taskIndex] = originalTask;
-        setCachedTasks(revertCache);
+      const { data, error } = await withTimeout(
+        supabase
+          .from('tasks')
+          .update(supabaseUpdates)
+          .eq('id', id)
+          .eq('user_id', currentUser.id)
+          .select()
+          .single(),
+        5000
+      );
+
+      if (error) throw error;
+
+      // Update cache with server response
+      const currentCache = getCachedTasks();
+      const idx = currentCache.findIndex(t => t.id === id);
+      if (idx >= 0) {
+        currentCache[idx] = {
+          id: data.id,
+          text: data.text,
+          completed: data.completed,
+          createdAt: new Date(data.created_at).getTime(),
+          completedAt: data.completed_at ? new Date(data.completed_at).getTime() : null,
+          color: data.color
+        };
+        setCachedTasks([...currentCache]);
       }
-      console.error('Error updating task:', error);
-      return null;
-    }
 
-    return {
-      id: data.id,
-      text: data.text,
-      completed: data.completed,
-      createdAt: new Date(data.created_at).getTime(),
-      completedAt: data.completed_at ? new Date(data.completed_at).getTime() : null,
-      color: data.color
-    };
-  } catch (error) {
-    // Revert cache on error
-    if (originalTask && taskIndex >= 0) {
-      const revertCache = getCachedTasks();
-      revertCache[taskIndex] = originalTask;
-      setCachedTasks(revertCache);
+      return data;
     }
-    console.error('Error updating task:', error);
-    return null;
-  }
+  });
+
+  // Start processing queue
+  processSyncQueue().catch(err => console.warn('Sync queue error:', err));
+
+  return updatedTask;
 }
 
 /**
- * Delete a task
+ * Delete a task (instant, non-blocking)
  * @param {string} id - Task ID
- * @returns {Promise<boolean>} True if deleted
+ * @returns {boolean} True if found and removed from cache
  */
-export async function deleteTask(id) {
-  const user = await getCurrentUser();
-  if (!user) return false;
-
+export function deleteTask(id) {
   // Remove from cache immediately
   const cached = getCachedTasks();
-  const deletedTask = cached.find(t => t.id === id);
   const filteredCache = cached.filter(t => t.id !== id);
+
+  if (filteredCache.length === cached.length) {
+    return false; // Task not found
+  }
+
   setCachedTasks(filteredCache);
 
-  try {
-    const { error } = await withTimeout(
-      supabase
-        .from('tasks')
-        .delete()
-        .eq('id', id)
-        .eq('user_id', user.id),
-      5000
-    );
+  // Queue background sync operation (skip if temp ID)
+  if (!id.startsWith('temp-')) {
+    syncQueue.push({
+      type: 'delete',
+      taskId: id,
+      execute: async () => {
+        const currentUser = await getCurrentUser();
+        if (!currentUser) throw new Error('Not authenticated');
 
-    if (error) {
-      // Restore task on error
-      if (deletedTask) {
-        setCachedTasks([...filteredCache, deletedTask]);
+        const { error } = await withTimeout(
+          supabase
+            .from('tasks')
+            .delete()
+            .eq('id', id)
+            .eq('user_id', currentUser.id),
+          5000
+        );
+
+        if (error) throw error;
+        return true;
       }
-      console.error('Error deleting task:', error);
-      return false;
-    }
+    });
 
-    return true;
-  } catch (error) {
-    // Restore task on error
-    if (deletedTask) {
-      setCachedTasks([...filteredCache, deletedTask]);
-    }
-    console.error('Error deleting task:', error);
-    return false;
+    // Start processing queue
+    processSyncQueue().catch(err => console.warn('Sync queue error:', err));
   }
+
+  return true;
 }
 
 /**
  * Get tasks sorted: incomplete first (newest first), then completed (newest first)
- * @returns {Promise<Task[]>} Sorted tasks
+ * @returns {Task[]} Sorted tasks
  */
-export async function getTasksSorted() {
-  const tasks = await getTasks();
+export function getTasksSorted() {
+  const tasks = getTasks();
   const incomplete = tasks.filter(t => !t.completed).sort((a, b) => b.createdAt - a.createdAt);
   const completed = tasks.filter(t => t.completed).sort((a, b) => (b.completedAt || b.createdAt) - (a.completedAt || a.createdAt));
   return [...incomplete, ...completed];
@@ -516,10 +592,10 @@ function formatDateDDMMYYYY(timestamp) {
 
 /**
  * Export tasks to JSON string
- * @returns {Promise<string>} JSON string of all tasks
+ * @returns {string} JSON string of all tasks
  */
-export async function exportTasks() {
-  const tasks = await getTasks();
+export function exportTasks() {
+  const tasks = getTasks();
   return JSON.stringify({
     version: 1,
     exportedAt: new Date().toISOString(),
@@ -559,10 +635,10 @@ export async function importTasks(jsonString, merge = false) {
 
 /**
  * Export tasks to Markdown format
- * @returns {Promise<string>} Markdown formatted tasks
+ * @returns {string} Markdown formatted tasks
  */
-export async function exportTasksToMarkdown() {
-  const tasks = await getTasksSorted();
+export function exportTasksToMarkdown() {
+  const tasks = getTasksSorted();
   const now = new Date();
   const dateStr = now.toLocaleDateString('ru-RU', {
     year: 'numeric',
