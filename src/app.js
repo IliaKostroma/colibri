@@ -59,7 +59,6 @@ const elements = {
   tasksSection: null,
   tasksList: null,
   tasksCount: null,
-  syncIndicator: null,
   // Auth elements
   authModal: null,
   authForm: null,
@@ -1240,7 +1239,6 @@ function cacheElements() {
   elements.tasksSection = document.getElementById('tasks-section');
   elements.tasksList = document.getElementById('tasks-list');
   elements.tasksCount = document.getElementById('tasks-count');
-  elements.syncIndicator = document.getElementById('sync-indicator');
 
   // Auth elements
   elements.authModal = document.getElementById('auth-modal');
@@ -1261,12 +1259,8 @@ async function loadUserData() {
   // Load tasks from cache immediately (instant UI)
   renderTasks();
 
-  // Setup sync indicator
+  // Setup sync status listener to re-render when sync completes
   storage.onSyncStatusChange((status) => {
-    if (elements.syncIndicator) {
-      elements.syncIndicator.hidden = !status.isSyncing && status.queueSize === 0;
-    }
-
     // Re-render tasks when sync completes with fresh data
     if (!status.isSyncing && status.queueSize === 0) {
       renderTasks();
