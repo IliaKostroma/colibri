@@ -42,6 +42,7 @@ let lastSyncTime = 0;
 let syncQueue = [];
 let isSyncing = false;
 let syncListeners = [];
+let syncStartTime = 0;
 
 /**
  * Add listener for sync status changes
@@ -55,7 +56,12 @@ export function onSyncStatusChange(callback) {
  * Notify all sync listeners
  */
 function notifySyncListeners() {
-  const status = { isSyncing, queueSize: syncQueue.length };
+  // Hide indicator if syncing for more than 10 seconds (likely offline/hanging)
+  const syncingTooLong = isSyncing && (Date.now() - syncStartTime > 10000);
+  const status = {
+    isSyncing: syncingTooLong ? false : isSyncing,
+    queueSize: syncQueue.length
+  };
   syncListeners.forEach(cb => cb(status));
 }
 
@@ -66,22 +72,27 @@ async function processSyncQueue() {
   if (isSyncing || syncQueue.length === 0) return;
 
   isSyncing = true;
+  syncStartTime = Date.now();
   notifySyncListeners();
 
-  while (syncQueue.length > 0) {
-    const operation = syncQueue[0];
+  try {
+    while (syncQueue.length > 0) {
+      const operation = syncQueue[0];
 
-    try {
-      await operation.execute();
-      syncQueue.shift(); // Remove successful operation
-    } catch (error) {
-      console.warn('Sync operation failed, will retry:', error);
-      break; // Stop processing, will retry later
+      try {
+        // Execute with timeout to prevent hanging
+        await withTimeout(operation.execute(), 8000);
+        syncQueue.shift(); // Remove successful operation
+      } catch (error) {
+        console.warn('Sync operation failed, will retry:', error);
+        break; // Stop processing, will retry later
+      }
     }
+  } finally {
+    // Always reset syncing state
+    isSyncing = false;
+    notifySyncListeners();
   }
-
-  isSyncing = false;
-  notifySyncListeners();
 }
 
 // ============================================================================
@@ -275,13 +286,15 @@ export function getTasks() {
  * @returns {Promise<Task[]>} Fresh tasks from server
  */
 export async function syncInBackground() {
-  const user = await getCurrentUser();
-  if (!user) {
-    clearTasksCache();
-    return [];
-  }
-
   try {
+    // Get user with timeout
+    const user = await withTimeout(getCurrentUser(), 3000);
+
+    if (!user) {
+      clearTasksCache();
+      return [];
+    }
+
     const { data, error } = await withTimeout(
       supabase
         .from('tasks')
@@ -392,7 +405,7 @@ export function addTask(text) {
     type: 'add',
     tempId,
     execute: async () => {
-      const currentUser = await getCurrentUser();
+      const currentUser = await withTimeout(getCurrentUser(), 3000);
       if (!currentUser) throw new Error('Not authenticated');
 
       const { data, error } = await withTimeout(
@@ -468,7 +481,7 @@ export function updateTask(id, updates) {
     type: 'update',
     taskId: id,
     execute: async () => {
-      const currentUser = await getCurrentUser();
+      const currentUser = await withTimeout(getCurrentUser(), 3000);
       if (!currentUser) throw new Error('Not authenticated');
 
       const { data, error } = await withTimeout(
@@ -531,7 +544,7 @@ export function deleteTask(id) {
       type: 'delete',
       taskId: id,
       execute: async () => {
-        const currentUser = await getCurrentUser();
+        const currentUser = await withTimeout(getCurrentUser(), 3000);
         if (!currentUser) throw new Error('Not authenticated');
 
         const { error } = await withTimeout(

@@ -1258,34 +1258,7 @@ function cacheElements() {
 }
 
 async function loadUserData() {
-  // Load provider
-  const savedProvider = await storage.getProvider();
-  updateState({ provider: savedProvider });
-
-  // Load OpenAI settings
-  const savedOpenAIKey = await storage.getApiKey();
-  if (savedOpenAIKey) {
-    openai.setApiKey(savedOpenAIKey);
-  }
-
-  const savedModel = await storage.getModel();
-  if (savedModel) {
-    openai.setModel(savedModel);
-  }
-
-  // Load OpenRouter settings
-  const savedOpenRouterKey = await storage.getOpenRouterApiKey();
-  if (savedOpenRouterKey) {
-    openrouter.setApiKey(savedOpenRouterKey);
-  }
-
-  // Set hasApiKey based on current provider
-  const hasKey = savedProvider === 'openrouter'
-    ? !!savedOpenRouterKey
-    : !!savedOpenAIKey;
-  updateState({ hasApiKey: hasKey });
-
-  // Load tasks from cache (instant)
+  // Load tasks from cache immediately (instant UI)
   renderTasks();
 
   // Setup sync indicator
@@ -1302,6 +1275,44 @@ async function loadUserData() {
 
   // Start automatic background sync
   storage.startAutoSync();
+
+  // Load settings in background (non-blocking, with timeout)
+  try {
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Settings load timeout')), 3000)
+    );
+
+    const settingsPromise = (async () => {
+      const savedProvider = await storage.getProvider();
+      updateState({ provider: savedProvider });
+
+      const savedOpenAIKey = await storage.getApiKey();
+      if (savedOpenAIKey) {
+        openai.setApiKey(savedOpenAIKey);
+      }
+
+      const savedModel = await storage.getModel();
+      if (savedModel) {
+        openai.setModel(savedModel);
+      }
+
+      const savedOpenRouterKey = await storage.getOpenRouterApiKey();
+      if (savedOpenRouterKey) {
+        openrouter.setApiKey(savedOpenRouterKey);
+      }
+
+      const hasKey = savedProvider === 'openrouter'
+        ? !!savedOpenRouterKey
+        : !!savedOpenAIKey;
+      updateState({ hasApiKey: hasKey });
+    })();
+
+    await Promise.race([settingsPromise, timeoutPromise]);
+  } catch (error) {
+    console.warn('Failed to load settings, using defaults:', error);
+    // App will work without settings - just no AI features
+    updateState({ hasApiKey: false });
+  }
 }
 
 async function init() {
@@ -1326,9 +1337,13 @@ async function init() {
     if (elements.logoutBtn) elements.logoutBtn.hidden = false;
   }
 
-  // Now verify with server
+  // Now verify with server (with timeout)
   try {
-    const user = await getCurrentUser();
+    const authTimeout = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Auth timeout')), 5000)
+    );
+
+    const user = await Promise.race([getCurrentUser(), authTimeout]);
 
     if (user) {
       updateState({ isAuthenticated: true, user });
@@ -1344,6 +1359,9 @@ async function init() {
     // Otherwise show login
     if (!cachedAuth?.isAuthenticated) {
       updateState({ isAuthenticated: false, user: null });
+    } else {
+      // Keep cached state but show warning
+      console.warn('Working offline with cached auth');
     }
     hideLoadingScreen();
   }
