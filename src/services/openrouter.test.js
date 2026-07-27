@@ -31,7 +31,7 @@ const openrouter = await import('./openrouter.js');
 const storage = await import('./storage.js');
 const { stripModelWrapping } = await import('./prompts.js');
 
-const DEFAULT_MODEL = 'google/gemma-4-26b-a4b-it:free';
+const DEFAULT_MODEL = 'openai/gpt-oss-20b:free';
 
 function mockFetch(response) {
   const fn = vi.fn(async () => response);
@@ -40,18 +40,17 @@ function mockFetch(response) {
 }
 
 function okResponse(content = 'готово') {
-  return {
-    ok: true,
-    json: async () => ({ choices: [{ message: { content } }] })
-  };
+  const body = { choices: [{ message: { content } }] };
+  const res = { ok: true, json: async () => body };
+  res.clone = () => ({ json: async () => body });
+  return res;
 }
 
 function errorResponse(status, message) {
-  return {
-    ok: false,
-    status,
-    json: async () => ({ error: { message } })
-  };
+  const body = { error: { message } };
+  const res = { ok: false, status, json: async () => body };
+  res.clone = () => ({ json: async () => body });
+  return res;
 }
 
 describe('Модель OpenRouter', () => {
@@ -83,7 +82,9 @@ describe('Модель OpenRouter', () => {
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);
     expect(body.model).toBe('google/gemma-4-31b-it:free');
     expect(body.messages[0].role).toBe('system');
-    expect(body.messages[1].content).toBe('текст с повторами повторами');
+    expect(body.messages[1].content).toContain('текст с повторами повторами');
+    // текст обёрнут в разделители, чтобы модель не приняла его за обращение к себе
+    expect(body.messages[1].content).toContain('<<<TEXT');
   });
 
   it('без ключа запрос не уходит вообще', async () => {
@@ -143,6 +144,47 @@ describe('Модель OpenRouter', () => {
     const result = await openrouter.translateToEnglish('ну что давай смотреть');
 
     expect(result).toBe("Alright, let's dive in and see what we've got!");
+  });
+
+  it('запрос требует строгую схему ответа — болтать негде', async () => {
+    const fetchMock = mockFetch(okResponse('{"text":"Hi there!"}'));
+
+    await openrouter.translateToEnglish('Привет!');
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.response_format.type).toBe('json_schema');
+    expect(body.response_format.json_schema.strict).toBe(true);
+    expect(body.response_format.json_schema.schema.required).toEqual(['text']);
+  });
+
+  it('ответ по схеме разворачивается в чистый текст', async () => {
+    mockFetch(okResponse('{"text":"Hi there!"}'));
+
+    const result = await openrouter.translateToEnglish('Привет!');
+
+    expect(result).toBe('Hi there!');
+  });
+
+  it('модель без схемы: повтор запроса без неё, результат всё равно чистый', async () => {
+    const fn = vi.fn()
+      .mockResolvedValueOnce(errorResponse(400, 'Provider does not support response_format json_schema'))
+      .mockResolvedValueOnce(okResponse('Hi there!'));
+    vi.stubGlobal('fetch', fn);
+
+    const result = await openrouter.translateToEnglish('Привет!');
+
+    expect(result).toBe('Hi there!');
+    expect(fn).toHaveBeenCalledTimes(2);
+    expect(JSON.parse(fn.mock.calls[0][1].body).response_format).toBeDefined();
+    expect(JSON.parse(fn.mock.calls[1][1].body).response_format).toBeUndefined();
+  });
+
+  it('ошибка не про схему повтор не запускает', async () => {
+    const fn = vi.fn().mockResolvedValue(errorResponse(429, 'Rate limit exceeded'));
+    vi.stubGlobal('fetch', fn);
+
+    await expect(openrouter.improveText('текст')).rejects.toThrow('Rate limit exceeded');
+    expect(fn).toHaveBeenCalledTimes(1);
   });
 });
 

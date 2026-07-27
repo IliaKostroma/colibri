@@ -8,25 +8,22 @@
   "language": "ru",
   "workerProtocol": "ОБЯЗАТЕЛЬНО: (1) прочесть AGENTS.md + этот файл; (2) в конце — запись в DEVLOG.md (тех) или STRATEGYLOG.md (продукт) + актуализация этого файла; (3) не оставлять рассинхрон между кодом, state и журналами",
   "oneLiner": "Таск-менеджер, в который задачи попадают голосом, а AI приводит надиктованное в читаемый вид",
-
   "location": {
     "path": "MotherVault/colibri",
     "gitTopology": "самостоятельный репозиторий внутри волта; волт игнорирует папку целиком (строка colibri/ в .gitignore волта)",
     "commitFrom": "изнутри colibri/, не из корня волта",
-    "remote": "https://github.com/IliaKostroma/colibri",
-    "deployedCommit": "47381ee (main == origin/main на 2026-07-27)"
+    "remote": "git@github.com:IliaKostroma/colibri.git (SSH; по HTTPS пуш требует пароль)",
+    "deployedCommit": "c09ae7a (JSON-бэкап) — правки по модели OpenRouter в прод ещё не ушли"
   },
-
   "stack": {
     "frontend": "vanilla JS (без фреймворков) + Vite 5",
     "backend": "Supabase (auth + Postgres), таблицы tasks и user_settings",
     "desktop": "Electron 39 + express, локальный сервер 127.0.0.1:45789 отдаёт dist/",
-    "ai": "OpenAI (дефолт gpt-3.5-turbo) или OpenRouter (дефолт google/gemini-2.0-flash-001), провайдер переключается в настройках",
+    "ai": "OpenAI (дефолт gpt-3.5-turbo, есть gpt-4o-mini) или OpenRouter (дефолт openai/gpt-oss-20b:free), провайдер переключается в настройках",
     "speech": "Web Speech API, язык захардкожен ru-RU — только Chrome/Safari",
     "tests": "vitest + jsdom + fast-check",
     "hosting": "Netlify, сайт c0libri → https://c0libri.netlify.app, автодеплой с main (cmd: npm run build, publish: dist)"
   },
-
   "commands": {
     "dev": "npm run dev — http://localhost:5173",
     "build": "npm run build",
@@ -34,23 +31,23 @@
     "electronDev": "npm run electron:dev",
     "electronBuildMac": "npm run electron:build:mac — в release/"
   },
-
   "env": {
     "file": ".env в корне, в git не лежит",
-    "vars": ["VITE_SUPABASE_URL", "VITE_SUPABASE_ANON_KEY"],
+    "vars": [
+      "VITE_SUPABASE_URL",
+      "VITE_SUPABASE_ANON_KEY"
+    ],
     "note": "оба инлайнятся Vite в бандл — так и задумано, anon-ключ публичный. Ключи OpenAI/OpenRouter вводит пользователь в UI и они хранятся в Supabase user_settings"
   },
-
   "implemented": {
     "auth": "Supabase email+password, модалка авторизации, кэш состояния авторизации в localStorage (colibri_auth_cache)",
     "tasks": "создание, отметка выполнения, инлайн-редактирование, удаление с 5-секундным отсчётом и отменой, цветовые метки (нет/фиолетовый/зелёный/оранжевый), разделители по датам, сортировка невыполненных наверх",
     "voice": "запись голосом через Web Speech API, промежуточные и финальные результаты, индикатор записи",
-    "ai": "improveText (редактура русского текста) и translateToEnglish, через OpenAI или OpenRouter, с откатом (undoProcessing). OpenRouter с 27.07.2026 работает не через пресеты аккаунта, а через явный id модели: дефолт google/gemma-4-26b-a4b-it:free, поле «Модель» в настройках, выбор хранится в localStorage (colibri_openrouter_model)",
+    "ai": "improveText (редактура русского текста) и translateToEnglish, через OpenAI или OpenRouter, с откатом (undoProcessing). OpenRouter с 27.07.2026 работает не через пресеты аккаунта, а через явный id модели: дефолт openai/gpt-oss-20b:free, поле «Модель» в настройках, выбор хранится в localStorage (colibri_openrouter_model). Формат ответа держится строгой json-схемой (одно поле text), с фоллбэком на промт для моделей без response_format",
     "offlineFirst": "локальный кэш colibri_tasks_cache + очередь операций + фоновый синк каждые 15 с, все сетевые вызовы в withTimeout(8000)",
     "importExport": "JSON и Markdown, в обе стороны, с режимом слияния. JSON (colibri-backup-*.json) — точная копия для восстановления, подключён к UI 27.07.2026 и покрыт тестами. Markdown (colibri-snapshot-*.md) — для чтения: теряет переносы строк, время суток и дату создания у выполненных задач",
     "desktop": "сборка Electron под mac/win/linux, запрос доступа к микрофону на macOS"
   },
-
   "pending": [
     {
       "id": "T1",
@@ -78,8 +75,8 @@
     {
       "id": "T5b",
       "priority": "низкий",
-      "title": "Следить, что модель по умолчанию всё ещё бесплатна",
-      "detail": "Дефолт google/gemma-4-26b-a4b-it:free выбран по каталогу OpenRouter 27.07.2026. Бесплатные слоты там регулярно закрывают — так умер @preset с Devstral. Приложение теперь объясняет это по-человечески и предлагает сменить модель в настройках, но дефолт в коде надо будет однажды обновить. Свежий список: https://openrouter.ai/models?q=free"
+      "title": "Следить за моделью по умолчанию: бесплатна ли и слушается ли инструкций",
+      "detail": "Дефолт openai/gpt-oss-20b:free (каталог OpenRouter 27.07.2026, цена 0/0, поддерживает response_format). Бесплатные слоты регулярно закрывают — так умер пресет с Devstral. Первый кандидат gemma-4-26b-a4b:free отвергнут: игнорировал инструкции о формате ответа. Запасные: google/gemma-4-31b-it:free, nvidia/nemotron-3-super-120b-a12b:free. Свежий список: https://openrouter.ai/models?q=free"
     },
     {
       "id": "T5",
@@ -94,24 +91,21 @@
       "detail": "Коммиты заявляют «PWA support», но в проекте нет ни manifest.json, ни service worker, ни apple-mobile-web-app мета-тегов. Реально есть только ветка кода под standalone-режим (supabase.js: customStorage для iOS, где localStorage может чиститься). Либо доделать PWA как надо, либо перестать называть это PWA."
     }
   ],
-
   "knownLimitations": {
     "tests": "см. T1 — результату npm test верить нельзя",
     "browser": "голосовой ввод только Chrome/Safari (Web Speech API), в Firefox не работает",
     "language": "распознавание захардкожено на ru-RU, выбора языка в UI нет",
     "apiKeys": "ключи пользователя лежат в Supabase открытым текстом, защищает только RLS",
-    "promptResponseFormat": "Модели склонны возвращать эссе с вариантами вместо готового текста. Держится на промте (раздел ФОРМАТ ОТВЕТА в prompts.js) + stripModelWrapping() как подстраховка. При смене модели проверять, что ответ подставляется в поле как есть",
+    "promptResponseFormat": "Модели склонны возвращать эссе с вариантами вместо готового текста. Защита в три слоя: строгая json-схема ответа, разделители <<<TEXT вокруг входа (wrapInput) и подчистка обёртки (stripModelWrapping). При смене модели проверять, что ответ подставляется в поле как есть",
     "monolith": "app.js — 1419 строк, всё состояние и весь UI в одном файле",
     "markdownImport": "парсинг регулярками, исторически ломался на эмодзи и метаданных — см. IMPORT-EXPORT-TEST.md. Для бэкапа не годится (теряет переносы строк, время суток, createdAt у выполненных) — использовать JSON",
     "staleSpec": ".kiro/specs/voice-transcriber/ описывает localStorage-архитектуру до Supabase, разошлась с кодом"
   },
-
   "openQuestions": [
     "Настроены ли RLS-политики на tasks и user_settings — или доступ шире, чем нужно?",
     "Прод и локальная разработка ходят в ОДНУ базу Supabase (yzmbqchwbjlnbmoytfes) — заводить ли отдельный dev-проект, чтобы эксперименты не трогали боевые задачи?",
     "COLIBRI остаётся личным инструментом или из него что-то делается для других? (см. STRATEGYLOG.md)"
   ],
-
   "verified": {
     "2026-07-27": [
       "npm run build проходит (48 модулей, 208 kB / 56 kB gzip)",
@@ -123,7 +117,8 @@
       "npm run dev поднимается за 211 мс после переезда, node_modules цел",
       "JSON-бэкап: 6 тестов зелёных (src/services/backup-json.test.js), круг экспорт→импорт без потерь",
       "npm test: 47 зелёных; два устаревших сьюта по-прежнему падают на сборе (T1)",
-      "превью-деплой https://backup-json--c0libri.netlify.app отвечает 200, прод остался на 47381ee"
+      "превью-деплой https://backup-json--c0libri.netlify.app отвечает 200, прод остался на 47381ee",
+      "openrouter.test.js: 22 теста, включая схему ответа и фоллбэк без неё; по проекту 71 зелёный"
     ]
   }
 }

@@ -147,7 +147,7 @@ describe('OpenAIService', () => {
         expect(requestBody.messages[0].role).toBe('system');
         expect(requestBody.messages[0].content).toContain('редактор русского текста');
         expect(requestBody.messages[1].role).toBe('user');
-        expect(requestBody.messages[1].content).toBe('Original text');
+        expect(requestBody.messages[1].content).toContain('Original text');
       });
 
       it('should throw error on API failure', async () => {
@@ -197,7 +197,7 @@ describe('OpenAIService', () => {
         expect(requestBody.messages[0].content).toContain('с русского на английский');
         // Без этого ограничения модели возвращают эссе с вариантами перевода
         expect(requestBody.messages[0].content).toContain('только перевод');
-        expect(requestBody.messages[1].content).toBe('Привет мир');
+        expect(requestBody.messages[1].content).toContain('Привет мир');
       });
 
       it('should throw error on API failure', async () => {

@@ -3,7 +3,7 @@
  * Requirements: 3.1, 3.2, 3.4, 3.5, 3.6, 4.1, 4.2, 4.3
  */
 
-import { IMPROVE_PROMPT, TRANSLATE_PROMPT, stripModelWrapping } from './prompts.js';
+import { IMPROVE_PROMPT, TRANSLATE_PROMPT, stripModelWrapping, wrapInput } from './prompts.js';
 
 const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
 const DEFAULT_MODEL = 'gpt-3.5-turbo';
@@ -95,7 +95,7 @@ async function makeOpenAIRequest(systemPrompt, userContent) {
  * @throws {Error} If the request fails
  */
 export async function improveText(text) {
-  return makeOpenAIRequest(IMPROVE_PROMPT, text);
+  return makeOpenAIRequest(IMPROVE_PROMPT, wrapInput(text));
 }
 
 /**
@@ -106,5 +106,5 @@ export async function improveText(text) {
  * @throws {Error} If the request fails
  */
 export async function translateToEnglish(text) {
-  return makeOpenAIRequest(TRANSLATE_PROMPT, text);
+  return makeOpenAIRequest(TRANSLATE_PROMPT, wrapInput(text));
 }
