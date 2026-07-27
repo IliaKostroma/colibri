@@ -640,6 +640,9 @@ export async function importTasks(jsonString, merge = false) {
     }
 
     await saveTasks(tasksToSave);
+    // Обновляем локальный кэш сразу: UI читает из него, иначе восстановленные
+    // задачи не появятся до следующего фонового синка (до 15 с)
+    setCachedTasks(tasksToSave);
     return { success: true, count: tasksToSave.length };
   } catch (error) {
     return { success: false, count: 0, error: error.message };
@@ -804,6 +807,8 @@ export async function importTasksFromMarkdown(markdown, merge = false) {
     }
 
     await saveTasks(tasksToSave);
+    // См. комментарий в importTasks — кэш обновляем сразу, UI читает из него
+    setCachedTasks(tasksToSave);
     return { success: true, count: tasksToSave.length };
 
   } catch (error) {

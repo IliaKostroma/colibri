@@ -55,6 +55,9 @@ const elements = {
   exportMarkdownBtn: null,
   importMarkdownBtn: null,
   markdownFileInput: null,
+  exportJsonBtn: null,
+  importJsonBtn: null,
+  jsonFileInput: null,
   notification: null,
   tasksSection: null,
   tasksList: null,
@@ -530,6 +533,67 @@ export function importMarkdownFile(event) {
 
         if (elements.markdownFileInput) {
           elements.markdownFileInput.value = '';
+        }
+      } else {
+        showNotification(`Ошибка: ${result.error}`, 'error');
+      }
+    } catch (error) {
+      console.error('Import error:', error);
+      showNotification('Ошибка при чтении файла', 'error');
+    }
+  };
+
+  reader.onerror = function() {
+    showNotification('Ошибка при чтении файла', 'error');
+  };
+
+  reader.readAsText(file);
+}
+
+export function exportJsonFile() {
+  const tasks = storage.getTasks();
+
+  if (tasks.length === 0) {
+    showNotification('Нет задач для экспорта', 'error');
+    return;
+  }
+
+  try {
+    const json = storage.exportTasks();
+    const blob = new Blob([json], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const timestamp = new Date().toISOString().replace(/:/g, '-').split('.')[0];
+    a.download = `colibri-backup-${timestamp}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    showNotification(`Бэкап сохранен: ${tasks.length} задач`, 'success');
+  } catch (error) {
+    console.error('Export error:', error);
+    showNotification('Ошибка при экспорте задач', 'error');
+  }
+}
+
+export function importJsonFile(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = async function(e) {
+    try {
+      const json = e.target.result;
+      const result = await storage.importTasks(json, false);
+
+      if (result.success) {
+        showNotification(`Бэкап восстановлен: ${result.count} задач`, 'success');
+        renderTasks();
+
+        if (elements.jsonFileInput) {
+          elements.jsonFileInput.value = '';
         }
       } else {
         showNotification(`Ошибка: ${result.error}`, 'error');
@@ -1110,6 +1174,11 @@ function bindEvents() {
     elements.markdownFileInput?.click();
   });
   elements.markdownFileInput?.addEventListener('change', importMarkdownFile);
+  elements.exportJsonBtn?.addEventListener('click', exportJsonFile);
+  elements.importJsonBtn?.addEventListener('click', () => {
+    elements.jsonFileInput?.click();
+  });
+  elements.jsonFileInput?.addEventListener('change', importJsonFile);
 
   // Auth events
   elements.authForm?.addEventListener('submit', handleLogin);
@@ -1235,6 +1304,9 @@ function cacheElements() {
   elements.exportMarkdownBtn = document.getElementById('export-markdown-btn');
   elements.importMarkdownBtn = document.getElementById('import-markdown-btn');
   elements.markdownFileInput = document.getElementById('markdown-file-input');
+  elements.exportJsonBtn = document.getElementById('export-json-btn');
+  elements.importJsonBtn = document.getElementById('import-json-btn');
+  elements.jsonFileInput = document.getElementById('json-file-input');
   elements.notification = document.getElementById('notification');
   elements.tasksSection = document.getElementById('tasks-section');
   elements.tasksList = document.getElementById('tasks-list');

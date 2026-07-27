@@ -186,7 +186,16 @@
           <!-- Tasks Backup Section -->
           <div class="form-group" style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid #e0e0e0;">
             <label class="form-label">Резервное копирование задач</label>
-            <p class="form-hint" style="margin-bottom: 1rem;">Создайте полный слепок (snapshot) всех задач в Markdown файл</p>
+            <p class="form-hint" style="margin-bottom: 1rem;">Бэкап (.json) — точная копия для восстановления. Слепок (.md) — для чтения в заметках.</p>
+
+            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.75rem;">
+              <button id="export-json-btn" class="btn-secondary" type="button">
+                🗄️ Сохранить бэкап (.json)
+              </button>
+              <button id="import-json-btn" class="btn-secondary" type="button">
+                ♻️ Восстановить бэкап (.json)
+              </button>
+            </div>
 
             <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.75rem;">
               <button id="export-markdown-btn" class="btn-secondary" type="button">
@@ -199,16 +208,23 @@
 
             <input
               type="file"
+              id="json-file-input"
+              accept=".json"
+              style="display: none;"
+            >
+
+            <input
+              type="file"
               id="markdown-file-input"
               accept=".md,.markdown,.txt"
               style="display: none;"
             >
 
             <p class="form-hint" style="font-size: 0.85rem; color: #666;">
-              ⚠️ <strong>Внимание:</strong> При восстановлении слепка ВСЕ текущие задачи будут ЗАМЕНЕНЫ на задачи из файла.
+              ⚠️ <strong>Внимание:</strong> При восстановлении ВСЕ текущие задачи будут ЗАМЕНЕНЫ на задачи из файла.
             </p>
             <p class="form-hint" style="font-size: 0.85rem; color: #666;">
-              💡 Слепок = полная резервная копия. Сохраняйте регулярно!
+              💡 Для бэкапа перед изменениями берите <strong>.json</strong> — он возвращает задачи ровно такими, какими были. Markdown теряет переносы строк, время суток и дату создания у выполненных задач.
             </p>
           </div>
         </div>
