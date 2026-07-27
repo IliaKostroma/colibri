@@ -13,7 +13,7 @@
     "gitTopology": "самостоятельный репозиторий внутри волта; волт игнорирует папку целиком (строка colibri/ в .gitignore волта)",
     "commitFrom": "изнутри colibri/, не из корня волта",
     "remote": "git@github.com:IliaKostroma/colibri.git (SSH; по HTTPS пуш требует пароль)",
-    "deployedCommit": "c09ae7a (JSON-бэкап) — правки по модели OpenRouter в прод ещё не ушли"
+    "deployedCommit": "0dd6f33 (27.07.2026): копии задач в JSON, фикс кэша при восстановлении, модель OpenRouter + схема ответа, переименованные кнопки"
   },
   "stack": {
     "frontend": "vanilla JS (без фреймворков) + Vite 5",
