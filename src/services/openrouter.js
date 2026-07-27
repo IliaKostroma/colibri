@@ -7,14 +7,18 @@ import { IMPROVE_PROMPT, TRANSLATE_PROMPT, stripModelWrapping, wrapInput } from 
 
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
-// Бесплатная модель по умолчанию (каталог OpenRouter на 27.07.2026).
-// Сначала стояла google/gemma-4-26b-a4b-it:free — на живой проверке она
-// игнорировала инструкции: вместо перевода выдавала разбор с вариантами
-// и просьбу прислать текст подлиннее. Заменена на gpt-oss-20b:free —
-// 3.6B активных параметров, заметно послушнее к формату ответа.
-// Если и она перестанет быть бесплатной, модель меняется в настройках,
-// свежий список: https://openrouter.ai/models?q=free
-const DEFAULT_MODEL = 'openai/gpt-oss-20b:free';
+// Бесплатная модель по умолчанию. Выбрана живым замером 27.07.2026 на
+// четырёх реальных сценариях (перевод слова и разговорной фразы, правка
+// диктовки, правка двух строк) — все четыре чисто, 2.7–10.7 с на запрос:
+//   google/gemma-4-26b-a4b-it:free  4/4, суммарно 25.8 с  ← выбрана
+//   openai/gpt-oss-20b:free         4/4, суммарно 135 с (до 98 с на запрос:
+//                                   у неё нельзя отключить режим рассуждений)
+//   google/gemma-4-31b-it:free      429, провайдер не выдал квоту
+//   inclusionai/ling-3.0-flash:free 400 на всех запросах
+// Болтливость gemma лечится схемой ответа (RESULT_SCHEMA), а не выбором
+// модели — без схемы она возвращала разбор с вариантами.
+// Свежий список бесплатных: https://openrouter.ai/models?q=free
+const DEFAULT_MODEL = 'google/gemma-4-26b-a4b-it:free';
 
 let apiKey = '';
 let currentModel = DEFAULT_MODEL;
@@ -83,7 +87,7 @@ const RESULT_SCHEMA = {
  * @param {boolean} withSchema - требовать строгую схему ответа
  * @returns {Promise<Response>}
  */
-function postCompletion(systemPrompt, userMessage, withSchema) {
+function postCompletion(systemPrompt, userMessage, options) {
   const body = {
     model: currentModel,
     messages: [
@@ -91,17 +95,21 @@ function postCompletion(systemPrompt, userMessage, withSchema) {
       { role: 'user', content: userMessage }
     ],
     temperature: 0.3,
-    // Многие бесплатные модели по умолчанию «думают» перед ответом: это
-    // добавляет десятки секунд там, где нужна правка пары предложений.
-    // OpenRouter игнорирует параметр для моделей без режима рассуждений.
-    reasoning: { enabled: false },
     // Ответ всегда сопоставим по длине с исходным текстом. Потолок нужен,
     // чтобы болтливая модель не молотила минуту, расписывая варианты.
     max_tokens: 2000
   };
 
-  if (withSchema) {
+  if (options.schema) {
     body.response_format = RESULT_SCHEMA;
+  }
+
+  if (options.disableReasoning) {
+    // Многие бесплатные модели по умолчанию «думают» перед ответом: это
+    // добавляет десятки секунд там, где нужна правка пары предложений.
+    // Часть моделей (gpt-oss) отключать рассуждения не даёт — тогда
+    // запрос повторяется без этого параметра, см. makeRequest.
+    body.reasoning = { enabled: false };
   }
 
   return fetch(OPENROUTER_API_URL, {
@@ -117,14 +125,22 @@ function postCompletion(systemPrompt, userMessage, withSchema) {
 }
 
 /**
- * Отказ вызван именно строгой схемой, а не чем-то ещё?
+ * Из-за чего провайдер отказал: из-за схемы ответа, из-за попытки выключить
+ * рассуждения — или по причине, которую повтором не лечат?
  * @param {Response} response
- * @returns {Promise<boolean>}
+ * @returns {Promise<'schema' | 'reasoning' | null>}
  */
-async function isSchemaRejection(response) {
+async function rejectionReason(response) {
   const data = await response.clone().json().catch(() => ({}));
   const message = data.error?.message || '';
-  return /response_format|json_schema|structured output|schema/i.test(message);
+
+  if (/reasoning is mandatory|cannot be disabled|reasoning.*required/i.test(message)) {
+    return 'reasoning';
+  }
+  if (/response_format|json_schema|structured output|schema/i.test(message)) {
+    return 'schema';
+  }
+  return null;
 }
 
 /**
@@ -161,12 +177,25 @@ async function makeRequest(systemPrompt, userMessage) {
     throw new Error('OpenRouter API key not configured');
   }
 
-  let response = await postCompletion(systemPrompt, userMessage, true);
+  // Модели различаются в том, что они вообще принимают: одни не умеют строгую
+  // схему ответа, другие не дают выключить режим рассуждений. Идём от строгого
+  // варианта и по тексту отказа снимаем ровно то требование, на которое
+  // провайдер пожаловался. Посторонние ошибки повтор не запускают.
+  const options = { schema: true, disableReasoning: true };
+  let response = await postCompletion(systemPrompt, userMessage, options);
 
-  // Не все модели умеют строгую схему ответа. Если провайдер отказал именно
-  // из-за неё — повторяем без схемы, тогда работает промт + очистка ответа.
-  if (!response.ok && await isSchemaRejection(response)) {
-    response = await postCompletion(systemPrompt, userMessage, false);
+  for (let retry = 0; retry < 2 && !response.ok; retry++) {
+    const reason = await rejectionReason(response);
+
+    if (reason === 'schema' && options.schema) {
+      options.schema = false;
+    } else if (reason === 'reasoning' && options.disableReasoning) {
+      options.disableReasoning = false;
+    } else {
+      break;
+    }
+
+    response = await postCompletion(systemPrompt, userMessage, options);
   }
 
   if (!response.ok) {

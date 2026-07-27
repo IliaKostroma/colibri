@@ -31,7 +31,7 @@ const openrouter = await import('./openrouter.js');
 const storage = await import('./storage.js');
 const { stripModelWrapping } = await import('./prompts.js');
 
-const DEFAULT_MODEL = 'openai/gpt-oss-20b:free';
+const DEFAULT_MODEL = 'google/gemma-4-26b-a4b-it:free';
 
 function mockFetch(response) {
   const fn = vi.fn(async () => response);
@@ -177,6 +177,36 @@ describe('Модель OpenRouter', () => {
     expect(fn).toHaveBeenCalledTimes(2);
     expect(JSON.parse(fn.mock.calls[0][1].body).response_format).toBeDefined();
     expect(JSON.parse(fn.mock.calls[1][1].body).response_format).toBeUndefined();
+  });
+
+  it('модель с обязательными рассуждениями: повтор без попытки их выключить', async () => {
+    const fn = vi.fn()
+      .mockResolvedValueOnce(errorResponse(400, 'Reasoning is mandatory for this endpoint and cannot be disabled.'))
+      .mockResolvedValueOnce(okResponse('{"text":"Hello!"}'));
+    vi.stubGlobal('fetch', fn);
+
+    const result = await openrouter.translateToEnglish('Привет!');
+
+    expect(result).toBe('Hello!');
+    expect(fn).toHaveBeenCalledTimes(2);
+    expect(JSON.parse(fn.mock.calls[0][1].body).reasoning).toEqual({ enabled: false });
+    expect(JSON.parse(fn.mock.calls[1][1].body).reasoning).toBeUndefined();
+    // схему при этом не теряем — жаловались не на неё
+    expect(JSON.parse(fn.mock.calls[1][1].body).response_format).toBeDefined();
+  });
+
+  it('провайдер против и схемы, и отключения рассуждений — снимаем оба требования', async () => {
+    const fn = vi.fn()
+      .mockResolvedValueOnce(errorResponse(400, 'Reasoning is mandatory and cannot be disabled'))
+      .mockResolvedValueOnce(errorResponse(400, 'response_format is not supported'))
+      .mockResolvedValueOnce(okResponse('Hello!'));
+    vi.stubGlobal('fetch', fn);
+
+    expect(await openrouter.translateToEnglish('Привет!')).toBe('Hello!');
+    expect(fn).toHaveBeenCalledTimes(3);
+    const last = JSON.parse(fn.mock.calls[2][1].body);
+    expect(last.reasoning).toBeUndefined();
+    expect(last.response_format).toBeUndefined();
   });
 
   it('ошибка не про схему повтор не запускает', async () => {

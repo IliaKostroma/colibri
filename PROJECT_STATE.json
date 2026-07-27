@@ -19,7 +19,7 @@
     "frontend": "vanilla JS (без фреймворков) + Vite 5",
     "backend": "Supabase (auth + Postgres), таблицы tasks и user_settings",
     "desktop": "Electron 39 + express, локальный сервер 127.0.0.1:45789 отдаёт dist/",
-    "ai": "OpenAI (дефолт gpt-3.5-turbo, есть gpt-4o-mini) или OpenRouter (дефолт openai/gpt-oss-20b:free), провайдер переключается в настройках",
+    "ai": "OpenAI (дефолт gpt-3.5-turbo, есть gpt-4o-mini) или OpenRouter (дефолт google/gemma-4-26b-a4b-it:free), провайдер переключается в настройках",
     "speech": "Web Speech API, язык захардкожен ru-RU — только Chrome/Safari",
     "tests": "vitest + jsdom + fast-check",
     "hosting": "Netlify, сайт c0libri → https://c0libri.netlify.app, автодеплой с main (cmd: npm run build, publish: dist)"
@@ -43,7 +43,7 @@
     "auth": "Supabase email+password, модалка авторизации, кэш состояния авторизации в localStorage (colibri_auth_cache)",
     "tasks": "создание, отметка выполнения, инлайн-редактирование, удаление с 5-секундным отсчётом и отменой, цветовые метки (нет/фиолетовый/зелёный/оранжевый), разделители по датам, сортировка невыполненных наверх",
     "voice": "запись голосом через Web Speech API, промежуточные и финальные результаты, индикатор записи",
-    "ai": "improveText (редактура русского текста) и translateToEnglish, через OpenAI или OpenRouter, с откатом (undoProcessing). OpenRouter с 27.07.2026 работает не через пресеты аккаунта, а через явный id модели: дефолт openai/gpt-oss-20b:free, поле «Модель» в настройках, выбор хранится в localStorage (colibri_openrouter_model). Формат ответа держится строгой json-схемой (одно поле text), с фоллбэком на промт для моделей без response_format",
+    "ai": "improveText (редактура русского текста) и translateToEnglish, через OpenAI или OpenRouter, с откатом (undoProcessing). OpenRouter с 27.07.2026 работает не через пресеты аккаунта, а через явный id модели: дефолт google/gemma-4-26b-a4b-it:free, поле «Модель» в настройках, выбор хранится в localStorage (colibri_openrouter_model). Формат ответа держится строгой json-схемой (одно поле text), с фоллбэком на промт для моделей без response_format",
     "offlineFirst": "локальный кэш colibri_tasks_cache + очередь операций + фоновый синк каждые 15 с, все сетевые вызовы в withTimeout(8000)",
     "importExport": "JSON и Markdown, в обе стороны, с режимом слияния. JSON (colibri-backup-*.json) — точная копия для восстановления, подключён к UI 27.07.2026 и покрыт тестами. Markdown (colibri-snapshot-*.md) — для чтения: теряет переносы строк, время суток и дату создания у выполненных задач",
     "desktop": "сборка Electron под mac/win/linux, запрос доступа к микрофону на macOS"
@@ -76,7 +76,7 @@
       "id": "T5b",
       "priority": "низкий",
       "title": "Следить за моделью по умолчанию: бесплатна ли и слушается ли инструкций",
-      "detail": "Дефолт openai/gpt-oss-20b:free (каталог OpenRouter 27.07.2026, цена 0/0, поддерживает response_format). Бесплатные слоты регулярно закрывают — так умер пресет с Devstral. Первый кандидат gemma-4-26b-a4b:free отвергнут: игнорировал инструкции о формате ответа. Запасные: google/gemma-4-31b-it:free, nvidia/nemotron-3-super-120b-a12b:free. Свежий список: https://openrouter.ai/models?q=free"
+      "detail": "Дефолт google/gemma-4-26b-a4b-it:free выбран живым замером 27.07.2026 на четырёх сценариях: 4/4 чисто, 25.8 с суммарно. Альтернативы по тому же замеру: openai/gpt-oss-20b:free работает, но у неё нельзя отключить рассуждения (135 с суммарно, до 98 с на запрос); google/gemma-4-31b-it:free отдала 429; inclusionai/ling-3.0-flash:free — 400 на всех запросах. Бесплатные слоты регулярно закрывают (так умер пресет с Devstral) — при поломке перезамерить. Скрипты замера: scratchpad/probe.py, e2e.mjs. Свежий список: https://openrouter.ai/models?q=free"
     },
     {
       "id": "T5",
@@ -118,7 +118,8 @@
       "JSON-бэкап: 6 тестов зелёных (src/services/backup-json.test.js), круг экспорт→импорт без потерь",
       "npm test: 47 зелёных; два устаревших сьюта по-прежнему падают на сборе (T1)",
       "превью-деплой https://backup-json--c0libri.netlify.app отвечает 200, прод остался на 47381ee",
-      "openrouter.test.js: 22 теста, включая схему ответа и фоллбэк без неё; по проекту 71 зелёный"
+      "openrouter.test.js: 22 теста, включая схему ответа и фоллбэк без неё; по проекту 71 зелёный",
+      "живой прогон через настоящий openrouter.js по ключу Ильи: gemma-4-26b-a4b:free — 4/4 чистых ответа (перевод слова/разговорной фразы, правка диктовки, правка двух строк), 25.7 с суммарно; фоллбэк по рассуждениям проверен на gpt-oss-20b:free"
     ]
   }
 }
