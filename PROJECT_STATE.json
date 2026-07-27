@@ -1,0 +1,131 @@
+{
+  "$schema": "machine-readable project state — обновляй при каждом значимом изменении (см. AGENTS.md, золотое правило)",
+  "project": "COLIBRI",
+  "formerName": "Voice Transcriber",
+  "updated": "2026-07-27",
+  "stage": "живой личный инструмент, задеплоен, ~6 месяцев без активной разработки",
+  "owner": "Ilya",
+  "language": "ru",
+  "workerProtocol": "ОБЯЗАТЕЛЬНО: (1) прочесть AGENTS.md + этот файл; (2) в конце — запись в DEVLOG.md (тех) или STRATEGYLOG.md (продукт) + актуализация этого файла; (3) не оставлять рассинхрон между кодом, state и журналами",
+  "oneLiner": "Таск-менеджер, в который задачи попадают голосом, а AI приводит надиктованное в читаемый вид",
+
+  "location": {
+    "path": "MotherVault/colibri",
+    "gitTopology": "самостоятельный репозиторий внутри волта; волт игнорирует папку целиком (строка colibri/ в .gitignore волта)",
+    "commitFrom": "изнутри colibri/, не из корня волта",
+    "remote": "https://github.com/IliaKostroma/colibri",
+    "deployedCommit": "47381ee (main == origin/main на 2026-07-27)"
+  },
+
+  "stack": {
+    "frontend": "vanilla JS (без фреймворков) + Vite 5",
+    "backend": "Supabase (auth + Postgres), таблицы tasks и user_settings",
+    "desktop": "Electron 39 + express, локальный сервер 127.0.0.1:45789 отдаёт dist/",
+    "ai": "OpenAI (дефолт gpt-3.5-turbo) или OpenRouter (дефолт google/gemini-2.0-flash-001), провайдер переключается в настройках",
+    "speech": "Web Speech API, язык захардкожен ru-RU — только Chrome/Safari",
+    "tests": "vitest + jsdom + fast-check",
+    "hosting": "Netlify, сайт c0libri → https://c0libri.netlify.app, автодеплой с main (cmd: npm run build, publish: dist)"
+  },
+
+  "commands": {
+    "dev": "npm run dev — http://localhost:5173",
+    "build": "npm run build",
+    "test": "npm test — ⚠️ результату верить нельзя, см. knownLimitations.tests",
+    "electronDev": "npm run electron:dev",
+    "electronBuildMac": "npm run electron:build:mac — в release/"
+  },
+
+  "env": {
+    "file": ".env в корне, в git не лежит",
+    "vars": ["VITE_SUPABASE_URL", "VITE_SUPABASE_ANON_KEY"],
+    "note": "оба инлайнятся Vite в бандл — так и задумано, anon-ключ публичный. Ключи OpenAI/OpenRouter вводит пользователь в UI и они хранятся в Supabase user_settings"
+  },
+
+  "implemented": {
+    "auth": "Supabase email+password, модалка авторизации, кэш состояния авторизации в localStorage (colibri_auth_cache)",
+    "tasks": "создание, отметка выполнения, инлайн-редактирование, удаление с 5-секундным отсчётом и отменой, цветовые метки (нет/фиолетовый/зелёный/оранжевый), разделители по датам, сортировка невыполненных наверх",
+    "voice": "запись голосом через Web Speech API, промежуточные и финальные результаты, индикатор записи",
+    "ai": "improveText (редактура русского текста) и translateToEnglish, через OpenAI или OpenRouter, с откатом (undoProcessing)",
+    "offlineFirst": "локальный кэш colibri_tasks_cache + очередь операций + фоновый синк каждые 15 с, все сетевые вызовы в withTimeout(8000)",
+    "importExport": "JSON и Markdown, в обе стороны, с режимом слияния. JSON (colibri-backup-*.json) — точная копия для восстановления, подключён к UI 27.07.2026 и покрыт тестами. Markdown (colibri-snapshot-*.md) — для чтения: теряет переносы строк, время суток и дату создания у выполненных задач",
+    "desktop": "сборка Electron под mac/win/linux, запрос доступа к микрофону на macOS"
+  },
+
+  "pending": [
+    {
+      "id": "T1",
+      "priority": "высокий",
+      "title": "Починить тесты — сейчас они врут",
+      "detail": "npm test печатает «41 passed», но storage.test.js и import-dates.test.js падают на импорте из-за отсутствия стаба window.matchMedia в src/test-setup.js. Со стабом собирается 68 тестов, 17 падают: тесты написаны под синхронный localStorage-API, а storage.js асинхронный и ходит в Supabase.",
+      "plan": "(1) стаб matchMedia в test-setup.js; (2) переписать storage.test.js и import-dates.test.js под async + мок Supabase; (3) убедиться, что падение сбора файла не маскируется в статистике",
+      "impact": "storage.js — 829 строк, самый большой сервис — сейчас без покрытия"
+    },
+    {
+      "id": "T2",
+      "priority": "высокий",
+      "title": "Проверить колонку openrouter_model в user_settings",
+      "detail": "Незакоммиченный код вызывает saveOpenRouterModel() → upsert поля openrouter_model. Если колонки нет, upsert падает молча: saveUserSettings возвращает {success, error}, но и storage.js, и app.js:saveSettings результат выбрасывают. Пользователь увидит «сохранено», после перезагрузки настройка исчезнет.",
+      "sql": "select column_name from information_schema.columns where table_name = 'user_settings';",
+      "fix": "добавить колонку (alter table user_settings add column openrouter_model text) И начать проверять результат saveUserSettings во всех вызывающих"
+    },
+    {
+      "id": "T3",
+      "priority": "высокий",
+      "title": "Проверить UNIQUE-констрейнт на user_settings.user_id",
+      "detail": "saveUserSettings вызывает upsert без onConflict. Без уникальности на user_id каждое сохранение создаёт новую строку, а getUserSettings с .single() начнёт падать со второй записи.",
+      "sql": "select conname, contype from pg_constraint where conrelid = 'user_settings'::regclass;",
+      "fix": "либо unique-констрейнт на user_id, либо явный .upsert(..., { onConflict: 'user_id' })"
+    },
+    {
+      "id": "T4",
+      "priority": "средний",
+      "title": "Решить судьбу незакоммиченного OpenRouter-изменения",
+      "detail": "5 файлов в рабочей копии: OpenRouter переведён с пресетов @preset/bettertext и @preset/tran-sto-eng на произвольную модель (дефолт google/gemini-2.0-flash-001) + свои системные промты, в UI добавлено поле «Модель», подпись «OpenRouter (бесплатно)» убрана. Это смена биллинга, не рефакторинг. В прод не ушло.",
+      "blockedBy": "T2 — без колонки в базе выбор модели не сохранится"
+    },
+    {
+      "id": "T5",
+      "priority": "низкий",
+      "title": "Гигиена репозитория",
+      "detail": "src/.DS_Store закоммичен вопреки .gitignore (git rm --cached src/.DS_Store); release/ содержит сборки под мёртвым именем «Voice Transcriber 1.0.0»; build.appId всё ещё com.voicetranscriber.app; README нет"
+    },
+    {
+      "id": "T6",
+      "priority": "низкий",
+      "title": "Разобраться с PWA",
+      "detail": "Коммиты заявляют «PWA support», но в проекте нет ни manifest.json, ни service worker, ни apple-mobile-web-app мета-тегов. Реально есть только ветка кода под standalone-режим (supabase.js: customStorage для iOS, где localStorage может чиститься). Либо доделать PWA как надо, либо перестать называть это PWA."
+    }
+  ],
+
+  "knownLimitations": {
+    "tests": "см. T1 — результату npm test верить нельзя",
+    "browser": "голосовой ввод только Chrome/Safari (Web Speech API), в Firefox не работает",
+    "language": "распознавание захардкожено на ru-RU, выбора языка в UI нет",
+    "apiKeys": "ключи пользователя лежат в Supabase открытым текстом, защищает только RLS",
+    "promptDuplication": "IMPROVE_PROMPT и TRANSLATE_PROMPT продублированы в openai.js и openrouter.js",
+    "monolith": "app.js — 1419 строк, всё состояние и весь UI в одном файле",
+    "markdownImport": "парсинг регулярками, исторически ломался на эмодзи и метаданных — см. IMPORT-EXPORT-TEST.md. Для бэкапа не годится (теряет переносы строк, время суток, createdAt у выполненных) — использовать JSON",
+    "staleSpec": ".kiro/specs/voice-transcriber/ описывает localStorage-архитектуру до Supabase, разошлась с кодом"
+  },
+
+  "openQuestions": [
+    "Настроены ли RLS-политики на tasks и user_settings — или доступ шире, чем нужно?",
+    "Прод и локальная разработка ходят в ОДНУ базу Supabase (yzmbqchwbjlnbmoytfes) — заводить ли отдельный dev-проект, чтобы эксперименты не трогали боевые задачи?",
+    "COLIBRI остаётся личным инструментом или из него что-то делается для других? (см. STRATEGYLOG.md)"
+  ],
+
+  "verified": {
+    "2026-07-27": [
+      "npm run build проходит (48 модулей, 208 kB / 56 kB gzip)",
+      "в бандле dist/ нет ключей кроме Supabase anon",
+      "Electron: nodeIntegration false, contextIsolation true",
+      "main == origin/main == 47381ee, локальные изменения не задеплоены",
+      "Netlify: сайт c0libri, https://c0libri.netlify.app отвечает 200, опубликован 47381ee, автодеплой с main включён",
+      "Netlify env production: VITE_SUPABASE_URL и VITE_SUPABASE_ANON_KEY заданы, тот же проект Supabase, что и в локальном .env",
+      "npm run dev поднимается за 211 мс после переезда, node_modules цел",
+      "JSON-бэкап: 6 тестов зелёных (src/services/backup-json.test.js), круг экспорт→импорт без потерь",
+      "npm test: 47 зелёных; два устаревших сьюта по-прежнему падают на сборе (T1)",
+      "превью-деплой https://backup-json--c0libri.netlify.app отвечает 200, прод остался на 47381ee"
+    ]
+  }
+}

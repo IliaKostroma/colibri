@@ -27,3 +27,6 @@ coverage/
 
 # Electron build cache
 .cache/
+
+# Local Netlify folder
+.netlify
