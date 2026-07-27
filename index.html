@@ -128,7 +128,7 @@
             <label for="provider-select" class="form-label">AI Провайдер</label>
             <select id="provider-select" class="form-select">
               <option value="openai">OpenAI</option>
-              <option value="openrouter">OpenRouter (бесплатно)</option>
+              <option value="openrouter">OpenRouter</option>
             </select>
           </div>
 
@@ -167,7 +167,23 @@
                 placeholder="sk-or-..."
                 autocomplete="off"
               >
-              <p class="form-hint">Бесплатные модели для улучшения и перевода текста</p>
+              <p class="form-hint">Получите ключ на <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai/keys</a></p>
+            </div>
+
+            <div class="form-group" style="margin-top: 1rem;">
+              <label for="openrouter-model-input" class="form-label">Модель</label>
+              <input
+                type="text"
+                id="openrouter-model-input"
+                class="form-input"
+                placeholder="google/gemma-4-26b-a4b-it:free"
+                autocomplete="off"
+              >
+              <p class="form-hint">
+                Пусто = бесплатная <code>google/gemma-4-26b-a4b-it:free</code>.
+                Можно вписать любую из <a href="https://openrouter.ai/models?q=free" target="_blank" rel="noopener">бесплатных</a>
+                или <a href="https://openrouter.ai/models" target="_blank" rel="noopener">всего каталога</a> — окончание <code>:free</code> означает, что модель бесплатная.
+              </p>
             </div>
           </div>
 
@@ -185,24 +201,24 @@
 
           <!-- Tasks Backup Section -->
           <div class="form-group" style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid #e0e0e0;">
-            <label class="form-label">Резервное копирование задач</label>
-            <p class="form-hint" style="margin-bottom: 1rem;">Бэкап (.json) — точная копия для восстановления. Слепок (.md) — для чтения в заметках.</p>
+            <label class="form-label">Копия задач</label>
+            <p class="form-hint" style="margin-bottom: 1rem;">Копия — полная и точная, для восстановления. Список — читаемый текст для заметок.</p>
 
             <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.75rem;">
               <button id="export-json-btn" class="btn-secondary" type="button">
-                🗄️ Сохранить бэкап (.json)
+                🛡️ Сохранить копию задач
               </button>
               <button id="import-json-btn" class="btn-secondary" type="button">
-                ♻️ Восстановить бэкап (.json)
+                ♻️ Вернуть задачи из копии
               </button>
             </div>
 
             <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.75rem;">
               <button id="export-markdown-btn" class="btn-secondary" type="button">
-                💾 Сохранить слепок (.md)
+                📝 Выгрузить список в заметки
               </button>
               <button id="import-markdown-btn" class="btn-secondary" type="button">
-                🔄 Восстановить слепок (.md)
+                📥 Загрузить список из заметок
               </button>
             </div>
 
@@ -221,10 +237,10 @@
             >
 
             <p class="form-hint" style="font-size: 0.85rem; color: #666;">
-              ⚠️ <strong>Внимание:</strong> При восстановлении ВСЕ текущие задачи будут ЗАМЕНЕНЫ на задачи из файла.
+              ⚠️ <strong>Внимание:</strong> При возврате ВСЕ текущие задачи будут ЗАМЕНЕНЫ на задачи из файла.
             </p>
             <p class="form-hint" style="font-size: 0.85rem; color: #666;">
-              💡 Для бэкапа перед изменениями берите <strong>.json</strong> — он возвращает задачи ровно такими, какими были. Markdown теряет переносы строк, время суток и дату создания у выполненных задач.
+              💡 Перед экспериментами сохраняйте <strong>копию</strong> — она возвращает задачи ровно такими, какими были. Список для заметок теряет переносы строк, время суток и дату создания у выполненных задач.
             </p>
           </div>
         </div>

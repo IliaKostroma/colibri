@@ -45,7 +45,7 @@
     "auth": "Supabase email+password, модалка авторизации, кэш состояния авторизации в localStorage (colibri_auth_cache)",
     "tasks": "создание, отметка выполнения, инлайн-редактирование, удаление с 5-секундным отсчётом и отменой, цветовые метки (нет/фиолетовый/зелёный/оранжевый), разделители по датам, сортировка невыполненных наверх",
     "voice": "запись голосом через Web Speech API, промежуточные и финальные результаты, индикатор записи",
-    "ai": "improveText (редактура русского текста) и translateToEnglish, через OpenAI или OpenRouter, с откатом (undoProcessing)",
+    "ai": "improveText (редактура русского текста) и translateToEnglish, через OpenAI или OpenRouter, с откатом (undoProcessing). OpenRouter с 27.07.2026 работает не через пресеты аккаунта, а через явный id модели: дефолт google/gemma-4-26b-a4b-it:free, поле «Модель» в настройках, выбор хранится в localStorage (colibri_openrouter_model)",
     "offlineFirst": "локальный кэш colibri_tasks_cache + очередь операций + фоновый синк каждые 15 с, все сетевые вызовы в withTimeout(8000)",
     "importExport": "JSON и Markdown, в обе стороны, с режимом слияния. JSON (colibri-backup-*.json) — точная копия для восстановления, подключён к UI 27.07.2026 и покрыт тестами. Markdown (colibri-snapshot-*.md) — для чтения: теряет переносы строк, время суток и дату создания у выполненных задач",
     "desktop": "сборка Electron под mac/win/linux, запрос доступа к микрофону на macOS"
@@ -63,10 +63,9 @@
     {
       "id": "T2",
       "priority": "высокий",
-      "title": "Проверить колонку openrouter_model в user_settings",
-      "detail": "Незакоммиченный код вызывает saveOpenRouterModel() → upsert поля openrouter_model. Если колонки нет, upsert падает молча: saveUserSettings возвращает {success, error}, но и storage.js, и app.js:saveSettings результат выбрасывают. Пользователь увидит «сохранено», после перезагрузки настройка исчезнет.",
-      "sql": "select column_name from information_schema.columns where table_name = 'user_settings';",
-      "fix": "добавить колонку (alter table user_settings add column openrouter_model text) И начать проверять результат saveUserSettings во всех вызывающих"
+      "title": "saveUserSettings возвращает {success, error}, который никто не проверяет",
+      "detail": "Провал сохранения любой настройки (ключи API, провайдер, модель OpenAI) проходит молча: пользователь видит «сохранено», после перезагрузки значение исчезает. Выбор модели OpenRouter от этой дыры увели в localStorage 27.07.2026, остальные настройки — по-прежнему в зоне риска.",
+      "fix": "проверять результат saveUserSettings в storage.js и app.js:saveSettings, показывать ошибку пользователю"
     },
     {
       "id": "T3",
@@ -77,11 +76,10 @@
       "fix": "либо unique-констрейнт на user_id, либо явный .upsert(..., { onConflict: 'user_id' })"
     },
     {
-      "id": "T4",
-      "priority": "средний",
-      "title": "Решить судьбу незакоммиченного OpenRouter-изменения",
-      "detail": "5 файлов в рабочей копии: OpenRouter переведён с пресетов @preset/bettertext и @preset/tran-sto-eng на произвольную модель (дефолт google/gemini-2.0-flash-001) + свои системные промты, в UI добавлено поле «Модель», подпись «OpenRouter (бесплатно)» убрана. Это смена биллинга, не рефакторинг. В прод не ушло.",
-      "blockedBy": "T2 — без колонки в базе выбор модели не сохранится"
+      "id": "T5b",
+      "priority": "низкий",
+      "title": "Следить, что модель по умолчанию всё ещё бесплатна",
+      "detail": "Дефолт google/gemma-4-26b-a4b-it:free выбран по каталогу OpenRouter 27.07.2026. Бесплатные слоты там регулярно закрывают — так умер @preset с Devstral. Приложение теперь объясняет это по-человечески и предлагает сменить модель в настройках, но дефолт в коде надо будет однажды обновить. Свежий список: https://openrouter.ai/models?q=free"
     },
     {
       "id": "T5",

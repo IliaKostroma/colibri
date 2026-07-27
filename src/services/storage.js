@@ -32,6 +32,7 @@ function withTimeout(promise, ms = DEFAULT_TIMEOUT) {
 // ============================================================================
 
 const TASKS_CACHE_KEY = 'colibri_tasks_cache';
+const OPENROUTER_MODEL_KEY = 'colibri_openrouter_model';
 let tasksCache = null;
 let lastSyncTime = 0;
 
@@ -248,6 +249,41 @@ export async function getModel() {
  */
 export async function saveModel(model) {
   await saveUserSettings({ ai_model: model });
+}
+
+/**
+ * Get OpenRouter model
+ * @returns {Promise<string | null>}
+ */
+export async function getOpenRouterModel() {
+  try {
+    return localStorage.getItem(OPENROUTER_MODEL_KEY) || null;
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
+ * Save OpenRouter model
+ *
+ * Хранится в localStorage, а не в Supabase user_settings — намеренно.
+ * Колонки openrouter_model в таблице нет, а saveUserSettings() возвращает
+ * {success, error}, который никто не проверяет: при отсутствующей колонке
+ * настройка молча не сохранялась бы. Цена решения — выбор модели не
+ * переезжает между устройствами, там подхватится модель по умолчанию.
+ *
+ * @param {string} model
+ */
+export async function saveOpenRouterModel(model) {
+  try {
+    if (model) {
+      localStorage.setItem(OPENROUTER_MODEL_KEY, model);
+    } else {
+      localStorage.removeItem(OPENROUTER_MODEL_KEY);
+    }
+  } catch (e) {
+    console.warn('Failed to save OpenRouter model:', e);
+  }
 }
 
 // ============================================================================

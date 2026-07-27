@@ -1,15 +1,36 @@
 /**
  * OpenRouter Service - Handles text improvement and translation via OpenRouter API
- * Uses preset models for better text and translation
+ * Supports any model available on OpenRouter
  */
 
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
-// OpenRouter preset models
-const PRESET_IMPROVE = '@preset/bettertext';
-const PRESET_TRANSLATE = '@preset/tran-sto-eng';
+// Бесплатная модель по умолчанию. Проверено по каталогу OpenRouter 27.07.2026:
+// google/gemma-4-26b-a4b-it:free — MoE, 3.8B активных параметров (быстрая),
+// контекст 256K, сильная в русском. Список бесплатных моделей меняется —
+// если эта перестанет быть бесплатной, модель можно сменить в настройках,
+// свежий список: https://openrouter.ai/models?q=free
+const DEFAULT_MODEL = 'google/gemma-4-26b-a4b-it:free';
+
+const IMPROVE_PROMPT = `Ты редактор русского текста. Твоя задача — улучшить читаемость текста на РУССКОМ языке.
+
+СТРОГИЕ ПРАВИЛА:
+1. Отвечай ТОЛЬКО на русском языке
+2. НЕ переводи текст на английский
+3. Убери повторы и слова-паразиты
+4. Сделай текст более читабельным
+5. Названия брендов пиши по-английски (ютуб → YouTube, гугл → Google)
+6. Не добавляй новую информацию
+
+Верни только улучшенный текст без пояснений.`;
+
+const TRANSLATE_PROMPT = `Переведи следующий текст на английский язык:
+- Используй дружелюбный корпоративный стиль
+- Сохрани структуру и смысл оригинала
+- Названия брендов и технологий пиши правильно`;
 
 let apiKey = '';
+let currentModel = DEFAULT_MODEL;
 
 /**
  * Set the OpenRouter API key
@@ -17,6 +38,22 @@ let apiKey = '';
  */
 export function setApiKey(key) {
   apiKey = key;
+}
+
+/**
+ * Set the model to use
+ * @param {string} model - The model ID (e.g., 'google/gemini-2.0-flash-001')
+ */
+export function setModel(model) {
+  currentModel = model || DEFAULT_MODEL;
+}
+
+/**
+ * Get the current model
+ * @returns {string}
+ */
+export function getModel() {
+  return currentModel;
 }
 
 /**
@@ -29,11 +66,11 @@ export function hasApiKey() {
 
 /**
  * Make a request to OpenRouter API
- * @param {string} model - The model/preset to use
+ * @param {string} systemPrompt - The system prompt
  * @param {string} userMessage - The user message content
  * @returns {Promise<string>} The response text
  */
-async function makeRequest(model, userMessage) {
+async function makeRequest(systemPrompt, userMessage) {
   if (!apiKey) {
     throw new Error('OpenRouter API key not configured');
   }
@@ -44,22 +81,36 @@ async function makeRequest(model, userMessage) {
       'Authorization': `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
       'HTTP-Referer': window.location.origin,
-      'X-Title': 'Voice Transcriber'
+      'X-Title': 'Colibri'
     },
     body: JSON.stringify({
-      model: model,
+      model: currentModel,
       messages: [
-        {
-          role: 'user',
-          content: userMessage
-        }
-      ]
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userMessage }
+      ],
+      temperature: 0.3
     })
   });
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error?.message || `OpenRouter API error: ${response.status}`);
+    const apiMessage = errorData.error?.message || `OpenRouter API error: ${response.status}`;
+
+    // Самый частый сбой: модель перестала быть бесплатной или её убрали.
+    // Голый ответ API («The free … period has ended») не подсказывает, что делать.
+    const modelGone = response.status === 404 ||
+      /free .*(period|tier).*(ended|over)|no longer|not found|migrate to the paid/i.test(apiMessage);
+
+    if (modelGone) {
+      throw new Error(
+        `Модель «${currentModel}» больше не доступна бесплатно. ` +
+        `Выберите другую в настройках — список бесплатных: openrouter.ai/models?q=free. ` +
+        `(ответ OpenRouter: ${apiMessage})`
+      );
+    }
+
+    throw new Error(apiMessage);
   }
 
   const data = await response.json();
@@ -67,7 +118,7 @@ async function makeRequest(model, userMessage) {
 }
 
 /**
- * Improve text using OpenRouter preset
+ * Improve text using OpenRouter
  * @param {string} text - Text to improve
  * @returns {Promise<string>} Improved text
  */
@@ -76,11 +127,11 @@ export async function improveText(text) {
     throw new Error('Text is required');
   }
 
-  return makeRequest(PRESET_IMPROVE, text);
+  return makeRequest(IMPROVE_PROMPT, text);
 }
 
 /**
- * Translate text to English using OpenRouter preset
+ * Translate text to English using OpenRouter
  * @param {string} text - Text to translate
  * @returns {Promise<string>} Translated text
  */
@@ -89,5 +140,5 @@ export async function translateToEnglish(text) {
     throw new Error('Text is required');
   }
 
-  return makeRequest(PRESET_TRANSLATE, text);
+  return makeRequest(TRANSLATE_PROMPT, text);
 }

@@ -48,6 +48,7 @@ const elements = {
   providerSelect: null,
   apiKeyInput: null,
   openrouterApiKeyInput: null,
+  openrouterModelInput: null,
   modelSelect: null,
   openaiSettings: null,
   openrouterSettings: null,
@@ -439,6 +440,12 @@ export async function openSettingsModal() {
     elements.modelSelect.value = currentModel;
   }
 
+  // Load current OpenRouter model
+  if (elements.openrouterModelInput) {
+    const currentModel = await storage.getOpenRouterModel();
+    elements.openrouterModelInput.value = currentModel || '';
+  }
+
   updateProviderSettingsVisibility();
   elements.settingsModal.hidden = false;
 }
@@ -470,6 +477,13 @@ export async function saveSettings() {
       await storage.saveOpenRouterApiKey(key);
       openrouter.setApiKey(key);
     }
+  }
+
+  // Save OpenRouter model
+  if (elements.openrouterModelInput) {
+    const model = elements.openrouterModelInput.value.trim();
+    await storage.saveOpenRouterModel(model);
+    openrouter.setModel(model);
   }
 
   // Save model selection (for OpenAI)
@@ -1297,6 +1311,7 @@ function cacheElements() {
   elements.providerSelect = document.getElementById('provider-select');
   elements.apiKeyInput = document.getElementById('api-key-input');
   elements.openrouterApiKeyInput = document.getElementById('openrouter-api-key-input');
+  elements.openrouterModelInput = document.getElementById('openrouter-model-input');
   elements.modelSelect = document.getElementById('model-select');
   elements.openaiSettings = document.getElementById('openai-settings');
   elements.openrouterSettings = document.getElementById('openrouter-settings');
@@ -1365,6 +1380,11 @@ async function loadUserData() {
       const savedOpenRouterKey = await storage.getOpenRouterApiKey();
       if (savedOpenRouterKey) {
         openrouter.setApiKey(savedOpenRouterKey);
+      }
+
+      const savedOpenRouterModel = await storage.getOpenRouterModel();
+      if (savedOpenRouterModel) {
+        openrouter.setModel(savedOpenRouterModel);
       }
 
       const hasKey = savedProvider === 'openrouter'
