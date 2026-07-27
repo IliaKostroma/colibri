@@ -3,6 +3,8 @@
  * Supports any model available on OpenRouter
  */
 
+import { IMPROVE_PROMPT, TRANSLATE_PROMPT, stripModelWrapping } from './prompts.js';
+
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
 // Бесплатная модель по умолчанию. Проверено по каталогу OpenRouter 27.07.2026:
@@ -11,23 +13,6 @@ const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 // если эта перестанет быть бесплатной, модель можно сменить в настройках,
 // свежий список: https://openrouter.ai/models?q=free
 const DEFAULT_MODEL = 'google/gemma-4-26b-a4b-it:free';
-
-const IMPROVE_PROMPT = `Ты редактор русского текста. Твоя задача — улучшить читаемость текста на РУССКОМ языке.
-
-СТРОГИЕ ПРАВИЛА:
-1. Отвечай ТОЛЬКО на русском языке
-2. НЕ переводи текст на английский
-3. Убери повторы и слова-паразиты
-4. Сделай текст более читабельным
-5. Названия брендов пиши по-английски (ютуб → YouTube, гугл → Google)
-6. Не добавляй новую информацию
-
-Верни только улучшенный текст без пояснений.`;
-
-const TRANSLATE_PROMPT = `Переведи следующий текст на английский язык:
-- Используй дружелюбный корпоративный стиль
-- Сохрани структуру и смысл оригинала
-- Названия брендов и технологий пиши правильно`;
 
 let apiKey = '';
 let currentModel = DEFAULT_MODEL;
@@ -89,7 +74,14 @@ async function makeRequest(systemPrompt, userMessage) {
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userMessage }
       ],
-      temperature: 0.3
+      temperature: 0.3,
+      // Многие бесплатные модели по умолчанию «думают» перед ответом: это
+      // добавляет десятки секунд там, где нужна правка пары предложений.
+      // OpenRouter игнорирует параметр для моделей без режима рассуждений.
+      reasoning: { enabled: false },
+      // Ответ всегда сопоставим по длине с исходным текстом. Потолок нужен,
+      // чтобы болтливая модель не молотила минуту, расписывая варианты.
+      max_tokens: 2000
     })
   });
 
@@ -114,7 +106,7 @@ async function makeRequest(systemPrompt, userMessage) {
   }
 
   const data = await response.json();
-  return data.choices[0]?.message?.content || '';
+  return stripModelWrapping(data.choices[0]?.message?.content || '');
 }
 
 /**

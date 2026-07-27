@@ -100,7 +100,7 @@
     "browser": "голосовой ввод только Chrome/Safari (Web Speech API), в Firefox не работает",
     "language": "распознавание захардкожено на ru-RU, выбора языка в UI нет",
     "apiKeys": "ключи пользователя лежат в Supabase открытым текстом, защищает только RLS",
-    "promptDuplication": "IMPROVE_PROMPT и TRANSLATE_PROMPT продублированы в openai.js и openrouter.js",
+    "promptResponseFormat": "Модели склонны возвращать эссе с вариантами вместо готового текста. Держится на промте (раздел ФОРМАТ ОТВЕТА в prompts.js) + stripModelWrapping() как подстраховка. При смене модели проверять, что ответ подставляется в поле как есть",
     "monolith": "app.js — 1419 строк, всё состояние и весь UI в одном файле",
     "markdownImport": "парсинг регулярками, исторически ломался на эмодзи и метаданных — см. IMPORT-EXPORT-TEST.md. Для бэкапа не годится (теряет переносы строк, время суток, createdAt у выполненных) — использовать JSON",
     "staleSpec": ".kiro/specs/voice-transcriber/ описывает localStorage-архитектуру до Supabase, разошлась с кодом"

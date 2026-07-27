@@ -3,27 +3,12 @@
  * Requirements: 3.1, 3.2, 3.4, 3.5, 3.6, 4.1, 4.2, 4.3
  */
 
+import { IMPROVE_PROMPT, TRANSLATE_PROMPT, stripModelWrapping } from './prompts.js';
+
 const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
 const DEFAULT_MODEL = 'gpt-3.5-turbo';
 
 let currentModel = DEFAULT_MODEL;
-
-const IMPROVE_PROMPT = `Ты редактор русского текста. Твоя задача — улучшить читаемость текста на РУССКОМ языке.
-
-СТРОГИЕ ПРАВИЛА:
-1. Отвечай ТОЛЬКО на русском языке
-2. НЕ переводи текст на английский
-3. Убери повторы и слова-паразиты
-4. Сделай текст более читабельным
-5. Названия брендов пиши по-английски (ютуб → YouTube, гугл → Google)
-6. Не добавляй новую информацию
-
-Верни только улучшенный текст без пояснений.`;
-
-const TRANSLATE_PROMPT = `Переведи следующий текст на английский язык:
-- Используй дружелюбный корпоративный стиль
-- Сохрани структуру и смысл оригинала
-- Названия брендов и технологий пиши правильно`;
 
 let apiKey = null;
 
@@ -99,7 +84,7 @@ async function makeOpenAIRequest(systemPrompt, userContent) {
     throw new Error('Invalid API response format');
   }
 
-  return data.choices[0].message.content;
+  return stripModelWrapping(data.choices[0].message.content);
 }
 
 /**

@@ -194,7 +194,9 @@ describe('OpenAIService', () => {
         expect(result).toBe('Translated text');
         
         const requestBody = JSON.parse(global.fetch.mock.calls[0][1].body);
-        expect(requestBody.messages[0].content).toContain('Переведи следующий текст на английский');
+        expect(requestBody.messages[0].content).toContain('с русского на английский');
+        // Без этого ограничения модели возвращают эссе с вариантами перевода
+        expect(requestBody.messages[0].content).toContain('только перевод');
         expect(requestBody.messages[1].content).toBe('Привет мир');
       });
 

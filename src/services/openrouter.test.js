@@ -29,6 +29,7 @@ vi.mock('./auth.js', () => ({
 
 const openrouter = await import('./openrouter.js');
 const storage = await import('./storage.js');
+const { stripModelWrapping } = await import('./prompts.js');
 
 const DEFAULT_MODEL = 'google/gemma-4-26b-a4b-it:free';
 
@@ -113,6 +114,60 @@ describe('Модель OpenRouter', () => {
     mockFetch(errorResponse(429, 'Rate limit exceeded'));
 
     await expect(openrouter.improveText('текст')).rejects.toThrow('Rate limit exceeded');
+  });
+
+  it('режим рассуждений выключен и длина ответа ограничена', async () => {
+    const fetchMock = mockFetch(okResponse());
+
+    await openrouter.translateToEnglish('привет');
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.reasoning).toEqual({ enabled: false });
+    expect(body.max_tokens).toBe(2000);
+  });
+
+  it('промт перевода запрещает варианты и пояснения', async () => {
+    const fetchMock = mockFetch(okResponse());
+
+    await openrouter.translateToEnglish('ну что давай смотреть что там кого');
+
+    const systemPrompt = JSON.parse(fetchMock.mock.calls[0][1].body).messages[0].content;
+    expect(systemPrompt).toContain('только перевод');
+    expect(systemPrompt).toContain('НЕ предлагай варианты');
+    expect(systemPrompt).toContain('НЕ объясняй');
+  });
+
+  it('кавычки и вводная строка от модели срезаются', async () => {
+    mockFetch(okResponse('"Alright, let\'s dive in and see what we\'ve got!"'));
+
+    const result = await openrouter.translateToEnglish('ну что давай смотреть');
+
+    expect(result).toBe("Alright, let's dive in and see what we've got!");
+  });
+});
+
+describe('Очистка ответа модели', () => {
+  it('вводная строка перед пустой строкой убирается', () => {
+    expect(stripModelWrapping('Вот перевод:\n\nLet us take a look.')).toBe('Let us take a look.');
+  });
+
+  it('кавычки вокруг всего ответа убираются', () => {
+    expect(stripModelWrapping('«Let us take a look.»')).toBe('Let us take a look.');
+  });
+
+  it('кавычки внутри текста не трогаются', () => {
+    const text = 'Он сказал "привет" и ушёл';
+    expect(stripModelWrapping(text)).toBe(text);
+  });
+
+  it('многострочный текст с двоеточием в первой строке не калечится', () => {
+    const text = 'Задача: купить молоко\nи хлеб';
+    expect(stripModelWrapping(text)).toBe(text);
+  });
+
+  it('пустой ответ не роняет обработку', () => {
+    expect(stripModelWrapping('')).toBe('');
+    expect(stripModelWrapping(null)).toBe('');
   });
 });
 
